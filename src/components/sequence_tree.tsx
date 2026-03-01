@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import type { KroneDecompRow, KroneDetectRow } from "@/pages/visualize_table";
 import { hierarchy, tree } from "d3-hierarchy";
 import type { HierarchyNode, HierarchyLink } from "d3-hierarchy";
@@ -1002,6 +1002,24 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     ]);
 
     const selectedSeqId = selectedIndex === null ? undefined : kroneDecompData[selectedIndex]?.seq_id; // Get the selected sequence ID from the decomposition data
+    const abnormalSeqIdSet = useMemo(() => {
+        return new Set(kroneDetectData.map((row) => row.seq_id));
+    }, [kroneDetectData]);
+    const abnormalSequenceCount = useMemo(() => {
+        return kroneDecompData.reduce((count, row) => (
+            abnormalSeqIdSet.has(row.seq_id) ? count + 1 : count
+        ), 0);
+    }, [kroneDecompData, abnormalSeqIdSet]);
+    const normalSequenceCount = kroneDecompData.length - abnormalSequenceCount;
+    const sortedSequenceRows = useMemo(() => {
+        return kroneDecompData
+            .sort((a, b) => {
+                const aAbnormal = abnormalSeqIdSet.has(a.seq_id);
+                const bAbnormal = abnormalSeqIdSet.has(b.seq_id);
+                if (aAbnormal !== bAbnormal) return aAbnormal ? -1 : 1;
+                return a.seq_id.localeCompare(b.seq_id, undefined, { numeric: true, sensitivity: "base" });
+            });
+    }, [kroneDecompData, abnormalSeqIdSet]);
     const selectedDecomp = selectedIndex === null ? undefined : kroneDecompData[selectedIndex];
     const anomalyRowsForSeq = kroneDetectData.filter(row => row.seq_id === selectedSeqId);
     const anomalyRow = anomalyRowsForSeq[0] || undefined; // Find the anomaly row corresponding to the selected sequence ID
@@ -1398,7 +1416,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                             <div
                                 style={{
                                     display: "flex",
-                                    alignItems: "baseline",
+                                    alignItems: "flex-start",
                                     gap: 12,
                                     flexWrap: "wrap",
                                     width: "100%",
@@ -1406,6 +1424,51 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                     borderBottom: "none",
                                 }}
                             >
+                                <div
+                                    style={{
+                                        width: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        flexWrap: "wrap",
+                                        gap: 8,
+                                        marginBottom: 4,
+                                    }}
+                                >
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                        <span
+                                            style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                padding: "2px 10px",
+                                                borderRadius: 999,
+                                                border: "1px solid #fecaca",
+                                                background: "#fef2f2",
+                                                color: "#b91c1c",
+                                                fontSize: "var(--font-sm)",
+                                            }}
+                                        >
+                                            🚨 Abnormal: {abnormalSequenceCount}
+                                        </span>
+                                        <span
+                                            style={{
+                                                display: "inline-flex",
+                                                alignItems: "center",
+                                                padding: "2px 10px",
+                                                borderRadius: 999,
+                                                border: "1px solid #bbf7d0",
+                                                background: "#f0fdf4",
+                                                color: "#166534",
+                                                fontSize: "var(--font-sm)",
+                                            }}
+                                        >
+                                            ✅ Normal: {normalSequenceCount}
+                                        </span>
+                                    </div>
+                                    <div style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>
+                                        Total: {kroneDecompData.length}
+                                    </div>
+                                </div>
                                 <label
                                     style={{
                                         display: "grid",
@@ -1451,10 +1514,11 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                         }}
                                     >
                                         <option value=""></option>
-                                        {kroneDecompData.map(row => (
+                                        {sortedSequenceRows.map((row: KroneDecompRow) => (
                                             <option key={row.seq_id} value={row.seq_id}
-                                                style={{ color: kroneDetectData.find(r => r.seq_id === row.seq_id) ? "#F00" : "#000" }}
+                                                style={{ color: abnormalSeqIdSet.has(row.seq_id) ? "#F00" : "#000" }}
                                             >
+                                                {abnormalSeqIdSet.has(row.seq_id) ? "🚨 Abnormal | " : "✅ Normal | "}
                                                 {row.seq_id}
                                             </option>
                                         ))}

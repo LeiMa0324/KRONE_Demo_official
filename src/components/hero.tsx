@@ -3,7 +3,7 @@ import { Link } from "react-router-dom"
 
 // CONSTANTS
 const KRONE_DESC = "Scalable and Interactive LLM-empowered Log Anomaly Detection";
-const BUTTON_LABEL = "Try Out Krone";
+const BUTTON_LABEL = "Try Out KRONE (HDFS dataset)";
 
 //Hero Component
 export const HeroSection = () => {

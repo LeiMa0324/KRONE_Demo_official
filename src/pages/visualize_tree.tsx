@@ -31,8 +31,6 @@ export const VisualizeTree: React.FC = () => {
   const [searchMode, setSearchMode] = useState<"logKey" | "sequence" | null>(null);
   const [isHierarchyExtracted, setIsHierarchyExtracted] = useState(false);
   const [isExtractingHierarchy, setIsExtractingHierarchy] = useState(false);
-  const [showTemplateUpload, setShowTemplateUpload] = useState(false);
-  const [uploadedTemplateName, setUploadedTemplateName] = useState<string | null>(null);
   const extractTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -133,12 +131,7 @@ export const VisualizeTree: React.FC = () => {
     setSearchMode("logKey");
   }
 
-  const handleTemplateUploadChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nextFile = e.target.files?.[0] ?? null;
-    setUploadedTemplateName(nextFile ? nextFile.name : null);
-  };
-
-  const statusSteps = ["1 Upload templates", "2 Hierachy extraction"];
+  const statusSteps = ["Hierarchy extraction"];
 
   return (
     <>
@@ -176,40 +169,24 @@ export const VisualizeTree: React.FC = () => {
             >
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
                 {statusSteps.map((step, idx) => {
-                  const isActive =
-                    (idx === 0 && !isExtractingHierarchy && !isHierarchyExtracted) ||
-                    (idx === 1 && isExtractingHierarchy);
-                  const isDone =
-                    (idx === 0 && (isExtractingHierarchy || isHierarchyExtracted)) ||
-                    (idx === 1 && isHierarchyExtracted);
+                  const isActive = isExtractingHierarchy;
+                  const isDone = isHierarchyExtracted;
                   return (
                     <React.Fragment key={step}>
                       <button
                         type="button"
                         onClick={() => {
-                          if (idx === 0) {
-                            if (extractTimerRef.current !== null) {
-                              window.clearTimeout(extractTimerRef.current);
-                              extractTimerRef.current = null;
-                            }
+                          if (extractTimerRef.current !== null) {
+                            window.clearTimeout(extractTimerRef.current);
+                            extractTimerRef.current = null;
+                          }
+                          setIsHierarchyExtracted(false);
+                          setIsExtractingHierarchy(true);
+                          extractTimerRef.current = window.setTimeout(() => {
                             setIsExtractingHierarchy(false);
-                            setIsHierarchyExtracted(false);
-                            setShowTemplateUpload(true);
-                          }
-                          if (idx === 1) {
-                            if (extractTimerRef.current !== null) {
-                              window.clearTimeout(extractTimerRef.current);
-                              extractTimerRef.current = null;
-                            }
-                            setIsHierarchyExtracted(false);
-                            setIsExtractingHierarchy(true);
-                            setShowTemplateUpload(false);
-                            extractTimerRef.current = window.setTimeout(() => {
-                              setIsExtractingHierarchy(false);
-                              setIsHierarchyExtracted(true);
-                              extractTimerRef.current = null;
-                            }, 2500);
-                          }
+                            setIsHierarchyExtracted(true);
+                            extractTimerRef.current = null;
+                          }, 2500);
                         }}
                         style={{
                           height: 30,
@@ -229,7 +206,7 @@ export const VisualizeTree: React.FC = () => {
                         }}
                       >
                         {isDone ? "✓" : ""}
-                        {idx === 1 && <Sparkles size={12} />}
+                        <Sparkles size={12} />
                         {step}
                       </button>
                       {idx < statusSteps.length - 1 && (
@@ -238,6 +215,50 @@ export const VisualizeTree: React.FC = () => {
                     </React.Fragment>
                   );
                 })}
+              </div>
+            </div>
+            <div
+              style={{
+                width: "100%",
+                display: "flex",
+                justifyContent: "center",
+                padding: "14px 16px 0 16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 16px",
+                  borderRadius: 999,
+                  background: "linear-gradient(90deg, #fef2f2 0%, #fff7ed 100%)",
+                  border: "1px solid #fed7aa",
+                  color: "#9a3412",
+                  fontFamily: "var(--font-WPIfont)",
+                  fontSize: "var(--font-sm)",
+                  fontWeight: 600,
+                  boxShadow: "0 4px 12px rgba(154,52,18,0.08)",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: "#fb923c",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                  }}
+                >
+                  i
+                </span>
+                Running on <strong style={{ color: "#7c2d12" }}>HDFS dataset</strong>
               </div>
             </div>
           </div>
@@ -343,46 +364,7 @@ export const VisualizeTree: React.FC = () => {
               fontSize: "var(--font-md)",
             }}
           >
-            Please upload the log templates
-            {showTemplateUpload && (
-              <div
-                style={{
-                  background: "#fff",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: 10,
-                  padding: 16,
-                  minWidth: 360,
-                  boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                }}
-              >
-                <label
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                    cursor: "pointer",
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    background: "#fff",
-                    color: "#374151",
-                    fontSize: "var(--font-sm)",
-                    fontWeight: 400,
-                  }}
-                >
-                  Choose file
-                  <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    onChange={handleTemplateUploadChange}
-                    style={{ display: "none" }}
-                  />
-                </label>
-                <div style={{ marginTop: 10, color: "#6b7280", fontSize: "var(--font-sm)" }}>
-                  {uploadedTemplateName ? `Selected: ${uploadedTemplateName}` : "No file selected"}
-                </div>
-              </div>
-            )}
+            Click "Hierarchy extraction" to start.
           </div>
         )}
         <div style={{ flex: "0 0 auto" }}>
