@@ -13,6 +13,7 @@ import { VizTree } from "@/components/viz_tree_components/viz_tree/viz_tree";
 import { TreeInfoPanel } from "@/components/viz_tree_components/info_panel/tree_info_panel";
 import { Footer } from "@/components/footer";
 import { Loader2, Sparkles } from "lucide-react";
+import { withBase } from "@/lib/base-url";
 
 export const VisualizeTree: React.FC = () => {
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
@@ -35,7 +36,7 @@ export const VisualizeTree: React.FC = () => {
   const extractTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    csv("/Krone_Tree.csv").then(rows => setTreeData(buildTree(rows)));
+    csv(withBase("Krone_Tree.csv")).then(rows => setTreeData(buildTree(rows)));
   }, []);
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { VizTree } from "@/components/viz_tree_components/viz_tree/viz_tree";
 import { buildTree } from "@/tree_utils";
 import type { TreeNode } from "@/tree_utils";
 import { SmallViewportWarning } from "@/components/smallViewportWarning";
+import { withBase } from "@/lib/base-url";
 
 //CONSTANTS
 const KNOWLEDGE_BASE_DESC = "Explore the knowledge base by interacting with the visualization below. Click on a node to query its child sequences."
@@ -254,8 +255,8 @@ export const KnowledgeBaseViz = () => {
     // On component mount fetches the training and testing knowledge and builds their respective knowledge structures
     useEffect(() => {
         Promise.all([
-            fetch("/train_knowledge_all.csv").then(res => res.text()),
-            fetch("/test_knowledge_all_fixed2.csv").then(res => res.text()),
+            fetch(withBase("train_knowledge_all.csv")).then(res => res.text()),
+            fetch(withBase("test_knowledge_all_fixed2.csv")).then(res => res.text()),
         ])
             .then(([trainCSV, testCSV]) => {
                 let trainStructures: ReturnType<typeof buildKnowledgeStructures>;
@@ -298,7 +299,7 @@ export const KnowledgeBaseViz = () => {
     }, []);
 
     useEffect(() => {
-        fetch("/Krone_Tree.csv")
+        fetch(withBase("Krone_Tree.csv"))
             .then(res => res.text())
             .then(csvText => {
                 setTreeData(buildTree(Papa.parse(csvText, { header: true }).data as CSVRow[]));

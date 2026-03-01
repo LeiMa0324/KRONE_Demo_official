@@ -12,7 +12,7 @@ import { KnowledgeBaseViz } from './pages/knowledge_base_viz';
 function App() {
   return (
     <FileProvider>
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <NavBar />
           <Routes>
             <Route path="/" element={<Home />} />

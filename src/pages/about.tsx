@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
+import { withBase } from "@/lib/base-url"
 
 // CONSTANTS
 const KRONE_desc =
@@ -12,37 +13,37 @@ const teamMembers = [
     {
         name: "Lei Ma",
         description: "PhD Student at Worcester Polytechnic Institute (Main Author)",
-        image_path: "/team_members/lei_m.png",
+        image_path: "team_members/lei_m.png",
         linkedin_url: "https://www.linkedin.com/in/lei-ma-491a6217b/",
     },
     {
         name: "Elke Rundensteiner",
         description: "Faculty Advisor at Worcester Polytechnic Institute",
-        image_path: "/team_members/elke_r.jpg",
+        image_path: "team_members/elke_r.jpg",
         linkedin_url: "https://www.linkedin.com/in/elke-rundensteiner-4a2825/",
     },
     {
         name: "Peter VanNostrand",
         description: "PhD Student at Worcester Polytechnic Institute",
-        image_path: "/team_members/peter_v.png",
+        image_path: "team_members/peter_v.png",
         linkedin_url: "https://www.linkedin.com/in/petervannostrand/",
     },
     {
         name: "Suhani Chaudhary",
         description: "Visiting Undergraduate Summer Researcher",
-        image_path: "/team_members/suhani_c.jpeg",
+        image_path: "team_members/suhani_c.jpeg",
         linkedin_url: "https://www.linkedin.com/in/suhani-chaudhary-25a476244/",
     },
     {
         name: "Ethan Shanbaum",
         description: "Worcester Polytechnic Institute Summer Undergraduate Researcher",
-        image_path: "/team_members/ethan.jpg",
+        image_path: "team_members/ethan.jpg",
         linkedin_url: "https://www.linkedin.com/in/ethan-shanbaum/",
     },
     {
         name: "Athanasios Tassiadamis",
         description: "Visiting Undergraduate Summer Researcher",
-        image_path: "/team_members/thanos_park.jpg",
+        image_path: "team_members/thanos_park.jpg",
         linkedin_url: "https://www.linkedin.com/in/athanasios-t-8a17b4294/",
     },
 ]
@@ -64,7 +65,7 @@ function TeamGrid() {
                             <div className="flex-grow flex items-center justify-center w-full">
                                 <img
                                     className="object-contain h-48 w-full rounded-xl"
-                                    src={member.image_path}
+                                    src={withBase(member.image_path)}
                                     alt={member.name}
                                 />
                             </div>

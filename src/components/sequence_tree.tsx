@@ -29,6 +29,7 @@ import {
 } from "../tree_utils";
 
 import type { TreeNode } from "../tree_utils";
+import { withBase } from "@/lib/base-url";
 
 // Define the props for the SequenceTree component
 type SequenceTreeProps = {
@@ -329,7 +330,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         if (demoMode) {
             setEventIdToLogTemplate(DEMO_EVENT_ID_TO_LOG_TEMPLATE);
         } else {
-            fetch("/structured_processes.csv")
+            fetch(withBase("structured_processes.csv"))
                 .then(res => res.text())
                 .then(csvText => {
                     Papa.parse(csvText, {

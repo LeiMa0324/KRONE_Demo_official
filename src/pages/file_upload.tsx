@@ -13,13 +13,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { withBase } from "@/lib/base-url";
 
 // Dataset options
 const datasets = [
-    { value: "HDFS", label: "HDFS", path: "/demo_data_hdfs.csv" },
-    { value: "BGL", label: "BGL", path: "/demo_data_bgl.csv" },
-    { value: "ThunderBird", label: "ThunderBird", path: "/demo_data_thunderbird.csv" },
-    { value: "IaaS", label: "IaaS (Industry)", path: "/demo_data_iaas.csv" },
+    { value: "HDFS", label: "HDFS", path: "demo_data_hdfs.csv" },
+    { value: "BGL", label: "BGL", path: "demo_data_bgl.csv" },
+    { value: "ThunderBird", label: "ThunderBird", path: "demo_data_thunderbird.csv" },
+    { value: "IaaS", label: "IaaS (Industry)", path: "demo_data_iaas.csv" },
 ];
 
 // Selection component
@@ -84,7 +85,7 @@ export const FileUpload = () => {
         }
 
         try {
-            const response = await fetch(dataset.path);
+            const response = await fetch(withBase(dataset.path));
             if (!response.ok) throw new Error("Failed to fetch dataset");
             const csvText = await response.text();
 

@@ -7,6 +7,7 @@ import type { HierarchyNode } from "d3-hierarchy";
 import type { TreeNode } from "@/tree_utils";
 import { SmallViewportWarning } from "@/components/smallViewportWarning";
 import { X } from "lucide-react";
+import { withBase } from "@/lib/base-url";
 
 
 // Data type for visualizing new tree
@@ -114,11 +115,11 @@ export const VisualizeTable = () => {
 
 
     useEffect(() => {
-        fetchKroneDecompData("/krone_decompose_res.csv").then((data) => {
+        fetchKroneDecompData(withBase("krone_decompose_res.csv")).then((data) => {
             setKroneDecompData(data);
         });
 
-        fetchKroneDetectData("/krone_detection_res.csv").then((data) => {
+        fetchKroneDetectData(withBase("krone_detection_res.csv")).then((data) => {
             setKroneDetectData(data);
         });
     }, []);

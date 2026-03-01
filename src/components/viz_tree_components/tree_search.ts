@@ -5,6 +5,7 @@ import { buildTree } from "../../tree_utils";
 import type {TreeNode } from "../../tree_utils";
 import { findStatusNode, findNodeId } from "./viz_tree_utils";
 import type { HierarchyNode } from "d3-hierarchy";
+import { withBase } from "@/lib/base-url";
 
 export function useTreeSearch() {
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
@@ -22,7 +23,7 @@ export function useTreeSearch() {
   const [searchMode, setSearchMode] = useState<"logKey" | "sequence" | null>(null);
 
   useEffect(() => {
-    csv("/Krone_Tree.csv").then(rows => setTreeData(buildTree(rows)));
+    csv(withBase("Krone_Tree.csv")).then(rows => setTreeData(buildTree(rows)));
   }, []);
 
   useEffect(() => {

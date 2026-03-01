@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Link, useLocation } from "react-router-dom";
 import { Menu, X } from "lucide-react"; // Icons for the hamburger menu
+import { withBase } from "@/lib/base-url";
 
 // CONSTANTS
 const BUTTON_STYLE = `
@@ -41,7 +42,7 @@ export const NavBar = () => {
                 <div className="flex items-center gap-4">
                     <Link to="/">
                         <Avatar className="size-12">
-                            <AvatarImage src="/cropped_wpi_logo.png" />
+                            <AvatarImage src={withBase("cropped_wpi_logo.png")} />
                             <AvatarFallback>WPI</AvatarFallback>
                         </Avatar>
                     </Link>
