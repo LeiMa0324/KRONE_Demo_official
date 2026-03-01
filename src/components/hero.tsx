@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Link } from "react-router-dom"
 
 // CONSTANTS
-const KRONE_DESC = "The newest state-of-the-art machine learning powered pinpoint log anomaly detector";
+const KRONE_DESC = "Scalable and Interactive LLM-empowered Log Anomaly Detection";
 const BUTTON_LABEL = "Try Out Krone";
 
 //Hero Component
