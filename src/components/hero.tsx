@@ -33,7 +33,7 @@ export const HeroSection = () => {
                 
                 {/* TEST BUTTON */}
                 <div className="pt-8">
-                    <Link to="/file-upload">
+                    <Link to="/visualize-tree">
                         <Button className="text-xl font-WPIfont px-10 py-6 rounded-lg animate-slide-in-bot"> {BUTTON_LABEL} </Button>
                     </Link>
                 </div>

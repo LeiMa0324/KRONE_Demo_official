@@ -131,7 +131,7 @@ export const VisualizeTree: React.FC = () => {
     setSearchMode("logKey");
   }
 
-  const statusSteps = ["Hierarchy extraction"];
+  const statusSteps = ["Hierarchy extraction (HDFS dataset)"];
 
   return (
     <>
@@ -215,50 +215,6 @@ export const VisualizeTree: React.FC = () => {
                     </React.Fragment>
                   );
                 })}
-              </div>
-            </div>
-            <div
-              style={{
-                width: "100%",
-                display: "flex",
-                justifyContent: "center",
-                padding: "14px 16px 0 16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 16px",
-                  borderRadius: 999,
-                  background: "linear-gradient(90deg, #fef2f2 0%, #fff7ed 100%)",
-                  border: "1px solid #fed7aa",
-                  color: "#9a3412",
-                  fontFamily: "var(--font-WPIfont)",
-                  fontSize: "var(--font-sm)",
-                  fontWeight: 600,
-                  boxShadow: "0 4px 12px rgba(154,52,18,0.08)",
-                }}
-              >
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    background: "#fb923c",
-                    color: "#fff",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    lineHeight: 1,
-                  }}
-                >
-                  i
-                </span>
-                Running on <strong style={{ color: "#7c2d12" }}>HDFS dataset</strong>
               </div>
             </div>
           </div>
