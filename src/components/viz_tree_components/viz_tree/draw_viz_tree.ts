@@ -187,6 +187,73 @@ export function drawVizTree({
           getNodeRectWidth: (node) => nodeWidthMap.get(node) ?? widestByDepth[node.depth],
         }
       );
+
+      if (d.depth < 1 || d.depth > 3) return;
+
+      const stats = d.data.sequenceStats || { normal: 0, abnormal: 0 };
+      const normalCount = Number(stats.normal) || 0;
+      const abnormalCount = Number(stats.abnormal) || 0;
+      const total = normalCount + abnormalCount;
+      const bbox = this.getBBox();
+      const nodeGroup = select(this.parentNode as SVGGElement);
+      const fontSize = getFontSize(d.depth);
+      const badgeFontSize = Math.max(9, Math.floor(fontSize * 0.72));
+      const badgeHeight = Math.max(11, Math.floor(badgeFontSize * 1.35));
+      const badgeGapY = 3;
+      let badgeX = bbox.x + bbox.width + getPadding(fontSize) + 10;
+      const centerY = bbox.y + bbox.height / 2;
+
+      const drawBadge = (text: string, y: number, style: { fill: string; stroke: string; color: string }) => {
+        const badgeWidth = Math.max(22, Math.ceil(text.length * badgeFontSize * 0.58) + 8);
+        nodeGroup.append("rect")
+          .attr("x", badgeX)
+          .attr("y", y)
+          .attr("width", badgeWidth)
+          .attr("height", badgeHeight)
+          .attr("rx", 4)
+          .attr("ry", 4)
+          .attr("fill", style.fill)
+          .attr("stroke", style.stroke)
+          .attr("stroke-width", 1);
+        nodeGroup.append("text")
+          .attr("x", badgeX + badgeWidth / 2)
+          .attr("y", y + badgeHeight / 2 + 0.5)
+          .attr("text-anchor", "middle")
+          .attr("alignment-baseline", "middle")
+          .attr("font-size", badgeFontSize)
+          .attr("font-weight", 600)
+          .attr("fill", style.color)
+          .text(text);
+      };
+
+      if (total === 0) {
+        drawBadge("0", centerY - badgeHeight / 2, {
+          fill: "#f8fafc",
+          stroke: "#cbd5e1",
+          color: "#475569",
+        });
+      } else {
+        const hasNormal = normalCount > 0;
+        const hasAbnormal = abnormalCount > 0;
+        const topY = hasNormal && hasAbnormal ? centerY - badgeHeight - badgeGapY / 2 : centerY - badgeHeight / 2;
+        const bottomY = centerY + badgeGapY / 2;
+
+        if (hasNormal) {
+        drawBadge(String(normalCount), topY, {
+          fill: "#f0fdf4",
+          stroke: "#86efac",
+          color: "#166534",
+        });
+        }
+
+        if (hasAbnormal) {
+        drawBadge(String(abnormalCount), bottomY, {
+          fill: "#fef2f2",
+          stroke: "#fca5a5",
+          color: "#b91c1c",
+        });
+        }
+      }
     });
 
   if (onNodeClick) {

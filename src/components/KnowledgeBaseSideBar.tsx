@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, Search, ChevronDown, Database, User, Activity, CircleDot } from "lucide-react";
-import type { EntityDict, ActionDict, EntitySequences, Seq } from "@/pages/knowledge_base_viz";
+import type { EntityDict, ActionDict, EntitySequences, Seq, DataScope } from "@/pages/knowledge_base_viz";
 import { exactSearch } from "@/pages/knowledge_base_viz";
 import type { TreeNode } from "@/tree_utils";
 
@@ -462,11 +462,11 @@ type KnowledgeBaseSideBarProps = {
     toggleSidebar: () => void;
     trainingData: { entityDict: EntityDict; actionDict: ActionDict; entitySequences: EntitySequences };
     testingData: { entityDict: EntityDict; actionDict: ActionDict; entitySequences: EntitySequences };
-    allSequences: Seq[];
     query: string;
     initialSearchLogKey?: string;
     defaultTab?: "train" | "test" | "approx";
     treeData: TreeNode | null;
+    dataScope: DataScope;
 };
 
 // -- KnowledgeBaseSideBar Component -- Takes in knowledge structure data, an inital query search, and a togglesidebar state
@@ -476,11 +476,11 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
     toggleSidebar,
     trainingData,
     testingData,
-    allSequences,
     query,
     initialSearchLogKey = "",
     defaultTab = "train",
     treeData = null,
+    dataScope,
 }) => {
     void defaultTab;
     const [searchLogKey, setSearchLogKey] = useState<string>("");
@@ -540,15 +540,27 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
         return [];
     };
     const combineAndSort = (trainSeqs: Seq[], testSeqs: Seq[]) => sortCombinedSequences([...trainSeqs, ...testSeqs]);
+    const getScopedByQuery = () => {
+        const trainSeqs = getSeq(trainingData);
+        const testSeqs = getSeq(testingData);
+        if (dataScope === "train") return sortCombinedSequences(trainSeqs);
+        if (dataScope === "test") return sortCombinedSequences(testSeqs);
+        return combineAndSort(trainSeqs, testSeqs);
+    };
     const resolveRowTableVariant = (seq: Seq): "train" | "test" => (trainingSeqSet.has(seq) ? "train" : "test");
     const resolveRowDataBadge = (seq: Seq): string | null => (trainingSeqSet.has(seq) ? "Training" : testingSeqSet.has(seq) ? "Testing" : null);
+    const scopedSearchPool = useMemo(() => {
+        if (dataScope === "train") return Array.from(trainingSeqSet);
+        if (dataScope === "test") return Array.from(testingSeqSet);
+        return Array.from(new Set<Seq>([...Array.from(trainingSeqSet), ...Array.from(testingSeqSet)]));
+    }, [dataScope, trainingSeqSet, testingSeqSet]);
     const selectedNodeInfo = useMemo(() => getSelectedNodeInfo(treeData, query), [treeData, query]);
 
     // When the component mounts set the current training and testing displays based off query
     useEffect(() => {
         if (initialSearchLogKey) return; // Don't overwrite if searching by logkeys
-        setCurrentDataDisplay(combineAndSort(getSeq(trainingData), getSeq(testingData)));
-    }, [trainingData, testingData, query, initialSearchLogKey, trainingSeqSet, testingSeqSet]);
+        setCurrentDataDisplay(getScopedByQuery());
+    }, [trainingData, testingData, query, initialSearchLogKey, trainingSeqSet, testingSeqSet, dataScope]);
 
     useEffect(() => {
         if (!showSidebar) {
@@ -560,20 +572,20 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
         if (showSidebar && initialSearchLogKey) {
             setSearchLogKey(initialSearchLogKey);
             const keys = initialSearchLogKey.split(",").map((k) => k.trim());
-            const results = exactSearch(allSequences, keys);
+            const results = exactSearch(scopedSearchPool, keys);
             setCurrentDataDisplay(sortCombinedSequences(results));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [showSidebar, initialSearchLogKey]);
+    }, [showSidebar, initialSearchLogKey, scopedSearchPool]);
 
     // On successful search update the current training and testing display
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!searchLogKey.trim()) {
-            setCurrentDataDisplay(combineAndSort(getSeq(trainingData), getSeq(testingData)));
+            setCurrentDataDisplay(getScopedByQuery());
         } else {
             const keys = searchLogKey.split(",").map((k) => k.trim());
-            const results = exactSearch(allSequences, keys);
+            const results = exactSearch(scopedSearchPool, keys);
             setCurrentDataDisplay(sortCombinedSequences(results));
         }
     };

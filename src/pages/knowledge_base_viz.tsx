@@ -1,6 +1,6 @@
 import { Footer } from "@/components/footer";
 import Papa from "papaparse";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KnowledgeBaseSideBar } from "@/components/KnowledgeBaseSideBar";
 import { VizTree } from "@/components/viz_tree_components/viz_tree/viz_tree";
 import { buildTree } from "@/tree_utils";
@@ -32,6 +32,7 @@ export type Seq = {
 export type EntityDict = Record<string, Seq[]>;
 export type ActionDict = Record<string, Seq[]>;
 export type EntitySequences = Seq[];
+export type DataScope = "all" | "train" | "test";
 
 export type CSVRow = {
     path_layer?: string;
@@ -44,6 +45,13 @@ export type CSVRow = {
     path_summary?: string; // Added path_summary field
     path_pred?: string; // Added path_pred field for isAnomaly
 };
+
+type SequenceCount = {
+    normal: number;
+    abnormal: number;
+};
+
+type SequenceStatsLookup = Record<string, SequenceCount>;
 
 function useQuery() {
   return new URLSearchParams(window.location.search);
@@ -197,6 +205,66 @@ export function exactSearch(sequences: Seq[], targetLogkeySeq: string[]): Seq[] 
     );
 }
 
+function getSeqForQuery(
+    data: { entityDict: EntityDict; actionDict: ActionDict; entitySequences: EntitySequences },
+    query: string
+): Seq[] {
+    if (query === ROOT_QUERY) return data.entitySequences;
+    if (data.entityDict[query]) return data.entityDict[query];
+    if (data.actionDict[query]) return data.actionDict[query];
+    return [];
+}
+
+function buildSequenceStatsLookup(
+    trainingData: KnowledgeBaseData,
+    testingData: KnowledgeBaseData,
+    tree: TreeNode,
+    scope: DataScope
+): SequenceStatsLookup {
+    const lookup: SequenceStatsLookup = {};
+    const seen = new Set<string>();
+
+    const collectNodeNames = (node: TreeNode) => {
+        seen.add(node.name);
+        for (const child of node.children || []) {
+            collectNodeNames(child);
+        }
+    };
+    collectNodeNames(tree);
+
+    for (const queryName of seen) {
+        const combined = scope === "train"
+            ? getSeqForQuery(trainingData, queryName)
+            : scope === "test"
+                ? getSeqForQuery(testingData, queryName)
+                : [...getSeqForQuery(trainingData, queryName), ...getSeqForQuery(testingData, queryName)];
+        let normal = 0;
+        let abnormal = 0;
+        for (const seq of combined) {
+            if (seq.isAnomaly) abnormal += 1;
+            else normal += 1;
+        }
+        lookup[queryName] = { normal, abnormal };
+    }
+
+    return lookup;
+}
+
+function attachSequenceStatsToTree(tree: TreeNode, lookup: SequenceStatsLookup): TreeNode {
+    const clonedTree = JSON.parse(JSON.stringify(tree)) as TreeNode;
+
+    const traverse = (node: TreeNode) => {
+        const count = lookup[node.name] || { normal: 0, abnormal: 0 };
+        node.sequenceStats = { normal: count.normal, abnormal: count.abnormal };
+        for (const child of node.children || []) {
+            traverse(child);
+        }
+    };
+
+    traverse(clonedTree);
+    return clonedTree;
+}
+
 // Full Knowlege Base Visualization Component - Includes tree and navbar
 export const KnowledgeBaseViz = () => {
 
@@ -211,9 +279,23 @@ export const KnowledgeBaseViz = () => {
         allSequences: [],
     });
     const [showSidebar, setShowSidebar] = useState(false);
-    const [treeData, setTreeData] = useState<TreeNode | null>(null);
+    const [rawTreeData, setRawTreeData] = useState<TreeNode | null>(null);
     const [selectedQuery, setSelectedQuery] = useState<string | null>(null);
     const [searchLogKey, setSearchLogKey] = useState<string>("");
+    const [dataScope, setDataScope] = useState<DataScope>("all");
+    const sequenceStatsLookup = useMemo(() => {
+        if (!rawTreeData || !knowledgeStructures.trainingData || !knowledgeStructures.testingData) return null;
+        return buildSequenceStatsLookup(
+            knowledgeStructures.trainingData,
+            knowledgeStructures.testingData,
+            rawTreeData,
+            dataScope
+        );
+    }, [rawTreeData, knowledgeStructures.trainingData, knowledgeStructures.testingData, dataScope]);
+    const treeData = useMemo(() => {
+        if (!rawTreeData || !sequenceStatsLookup) return rawTreeData;
+        return attachSequenceStatsToTree(rawTreeData, sequenceStatsLookup);
+    }, [rawTreeData, sequenceStatsLookup]);
 
     /* -- LOCAL FUNCTIONS -- */
     const toggleSidebar = () => {
@@ -302,7 +384,7 @@ export const KnowledgeBaseViz = () => {
         fetch(withBase("Krone_Tree.csv"))
             .then(res => res.text())
             .then(csvText => {
-                setTreeData(buildTree(Papa.parse(csvText, { header: true }).data as CSVRow[]));
+                setRawTreeData(buildTree(Papa.parse(csvText, { header: true }).data as CSVRow[]));
             });
     }, []);
 
@@ -317,6 +399,41 @@ export const KnowledgeBaseViz = () => {
                     <p className="text-WPIGrey/110 text-lg mt-2">
                         {KNOWLEDGE_BASE_DESC}
                     </p>
+                    <div className="mt-4 flex justify-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setDataScope("all")}
+                            className={`px-4 py-1.5 rounded-full border text-sm font-WPIfont ${
+                                dataScope === "all"
+                                    ? "bg-neutral-900 text-white border-neutral-900"
+                                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
+                            }`}
+                        >
+                            All
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDataScope("train")}
+                            className={`px-4 py-1.5 rounded-full border text-sm font-WPIfont ${
+                                dataScope === "train"
+                                    ? "bg-amber-600 text-white border-amber-600"
+                                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
+                            }`}
+                        >
+                            Training only
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDataScope("test")}
+                            className={`px-4 py-1.5 rounded-full border text-sm font-WPIfont ${
+                                dataScope === "test"
+                                    ? "bg-sky-700 text-white border-sky-700"
+                                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
+                            }`}
+                        >
+                            Testing only
+                        </button>
+                    </div>
                 </div>
                 
                 {/* TREE DISPLAY */}
@@ -346,7 +463,6 @@ export const KnowledgeBaseViz = () => {
                         toggleSidebar={toggleSidebar}
                         trainingData={knowledgeStructures.trainingData}
                         testingData={knowledgeStructures.testingData}
-                        allSequences={knowledgeStructures.allSequences}
                         query={
                             selectedQuery
                                 ? selectedQuery === ROOT_QUERY
@@ -357,6 +473,7 @@ export const KnowledgeBaseViz = () => {
                         initialSearchLogKey={searchLogKey}
                         defaultTab={defaultTab}
                         treeData={treeData!}
+                        dataScope={dataScope}
                     />
                 )}
             </div>

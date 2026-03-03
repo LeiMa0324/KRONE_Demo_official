@@ -15,6 +15,10 @@ export type TreeNode = {
   lineNumber?: number;
   event_id?: string;
   log_template?: string;
+  sequenceStats?: {
+    normal: number;
+    abnormal: number;
+  };
 };
 
 
