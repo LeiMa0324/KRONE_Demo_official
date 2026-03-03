@@ -1072,7 +1072,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         return "select";
     })();
     const flowSteps: Array<{ id: FlowStepId; label: string; done: boolean; disabled: boolean }> = [
-        { id: "select", label: "1 Select", done: !!selectedSeqId, disabled: false },
+        { id: "select", label: "1 Select a test log sequence", done: !!selectedSeqId, disabled: false },
         { id: "decompose", label: "2 Decompose", done: showDecomposed, disabled: !selectedSeqId || isDecomposing },
         { id: "detect", label: "3 Detect and localize", done: showDetected, disabled: !selectedSeqId || !showDecomposed },
         { id: "explain", label: "4 Explain", done: showAnomalyExplanation, disabled: !canExplain && !showAnomalyExplanation },
