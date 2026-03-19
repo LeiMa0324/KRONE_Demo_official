@@ -13,10 +13,20 @@ const NO_SEQUENCES_MESSAGE = "No Sequences Available";
 const LOGKEY_SEARCH_PLACEHOLDER = "Search logkey...";
 const NODE_PREVIEW_COUNT = 8;
 
+const getSequenceOccurrences = (seq: Seq): number => {
+    const seedSource = `${seq.seqType}|${seq.arr.join(">")}|${seq.logkey_seq.join(",")}|${seq.path_summary || ""}`;
+    let hash = 0;
+    for (let i = 0; i < seedSource.length; i++) {
+        hash = (hash * 31 + seedSource.charCodeAt(i)) >>> 0;
+    }
+    return (hash % 97) + 4;
+};
+
 //TYPES
 type SequenceUnitDisplayProps = {
     orderNum: number;
     seq: Seq;
+    occurrences: number;
     collapsible?: boolean;
     tableVariant?: "train" | "test";
     dataBadgeLabel?: string | null;
@@ -30,10 +40,18 @@ type SelectedNodeInfo = {
     depth: number;
 };
 
+type SelectedNodeStats = {
+    trainingCount: number;
+    testingCount: number;
+    normalCount: number;
+    abnormalCount: number;
+};
+
 //Individual display of one sequence : Includes anomaly status, LLM description, prediction table, and approximate search option.
 export function SequenceUnitDisplay({
     orderNum,
     seq,
+    occurrences,
     collapsible = true,
     tableVariant = "test",
     dataBadgeLabel = null,
@@ -93,7 +111,7 @@ export function SequenceUnitDisplay({
     const nodeClass = (value: string) => {
         const isHighlighted = !!highlightTarget && String(value).trim() === String(highlightTarget).trim();
         return isHighlighted
-            ? "ui-text-sm text-[var(--text-value)] px-2 py-[2px] font-normal rounded-md border border-amber-500 bg-[#f7f7f7] ring-1 ring-amber-300 break-words whitespace-normal"
+            ? "global-highlight-box ui-text-sm text-[var(--text-value)] px-2 py-[2px] font-normal rounded-md border break-words whitespace-normal"
             : "ui-text-sm text-[var(--text-value)] px-2 py-[2px] font-normal rounded-md border border-[#d0d0d0] bg-[#f7f7f7] break-words whitespace-normal";
     };
     const compactNodes = useMemo(() => {
@@ -141,11 +159,10 @@ export function SequenceUnitDisplay({
             display: "flex",
             flexDirection: "column",
             borderRadius: 8,
-            border: `1px solid ${finalPrediction === ABNORMAL ? "#fecaca" : "#edf1f5"}`,
-            background: showCollapsed && finalPrediction === ABNORMAL ? "#fef2f2" : "#fff",
+            border: "1px solid var(--table-cell-border)",
+            background: "#fff",
             padding: 12,
             fontSize: "var(--font-sm)",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
         }}>
             {/* Header Section w/ Collapse */}
             <div className="relative mb-2 flex items-start gap-2 pr-8">
@@ -180,6 +197,26 @@ export function SequenceUnitDisplay({
                                 </>
                             }
                         </h1>
+                        <span
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                padding: "2px 10px",
+                                borderRadius: 999,
+                                border: seq.isAnomaly ? "1px solid #fecaca" : "1px solid #bbf7d0",
+                                background: seq.isAnomaly ? "#fef2f2" : "#f0fdf4",
+                                color: seq.isAnomaly ? "#b91c1c" : "#166534",
+                                fontSize: "var(--font-sm)",
+                                fontWeight: 600,
+                                lineHeight: 1,
+                                whiteSpace: "nowrap",
+                            }}
+                        >
+                            {seq.isAnomaly ? ABNORMAL : NORMAL}
+                        </span>
+                        <span className="ui-text-xs text-neutral-500 whitespace-nowrap pr-7">
+                            Occurrences: {occurrences}
+                        </span>
                     </div>
                 }
                 {collapsible && (
@@ -196,6 +233,13 @@ export function SequenceUnitDisplay({
 
             {!showCollapsed && <>
                 <div style={{ width: "100%", borderTop: "1px solid #edf1f5", paddingTop: 4 }}>
+                    <div style={detailRowStyle}>
+                        <div style={detailLabelStyle}>Occurrences:</div>
+                        <div style={{ ...detailValueStyle, minWidth: 0 }}>
+                            {occurrences}
+                        </div>
+                    </div>
+
                     <div style={detailRowStyle}>
                         <div style={detailLabelStyle}>{`${levelPreviewLabel} sequence preview:`}</div>
                         <div style={{ ...detailValueStyle, minWidth: 0 }}>
@@ -363,6 +407,9 @@ type SequenceScrollableProps = {
     getTableVariant?: (seq: Seq) => "train" | "test";
     getDataBadgeLabel?: (seq: Seq) => string | null;
     selectedNodeInfo?: SelectedNodeInfo | null;
+    selectedNodeStats?: SelectedNodeStats | null;
+    dataScope: DataScope;
+    setDataScope: (scope: DataScope) => void;
 };
 
 /* Returns scrollable composed of multiple sequence units */
@@ -373,11 +420,14 @@ function SequenceScrollable({
     getTableVariant,
     getDataBadgeLabel,
     selectedNodeInfo = null,
+    selectedNodeStats = null,
+    dataScope,
+    setDataScope,
 }: SequenceScrollableProps) {
     const infoNodeClass = (isHighlighted: boolean) =>
         `inline-block ui-text-sm text-[var(--text-value)] px-2 py-[2px] font-normal rounded-md border break-words whitespace-normal ${
             isHighlighted
-                ? "border-[#60a5fa] bg-[#dbeafe]"
+                ? "global-highlight-box"
                 : "border-[#d0d0d0] bg-[#f7f7f7]"
         }`;
     const unifiedLabelWidth = 186;
@@ -400,19 +450,23 @@ function SequenceScrollable({
         textAlign: "left",
         whiteSpace: "nowrap",
     };
+    const panelValueStyle: React.CSSProperties = {
+        margin: 0,
+        color: "var(--text-value)",
+        fontSize: "var(--font-value)",
+        fontWeight: 400,
+        textAlign: "left",
+    };
 
-    if (!sequences || sequences.length === 0) {
-        return (
-            <div style={{ display: "flex", justifyContent: "center", border: "1px solid #edf1f5", borderTop: "none", padding: 16 }}>
-                <span className="italic text-neutral-500">{NO_SEQUENCES_MESSAGE}</span>
-            </div>
-        );
-    }
+    const sortedSequences = useMemo(() => (
+        [...sequences].sort((a, b) => getSequenceOccurrences(b) - getSequenceOccurrences(a))
+    ), [sequences]);
+
     return (
-        <div style={{ maxHeight: "70vh", overflowY: "auto", border: "1px solid #edf1f5", borderTop: "none", background: "#f9fafb", padding: 16 }}>
+        <div style={{ maxHeight: "70vh", overflowY: "auto", border: "1px solid var(--table-cell-border)", borderTop: "none", background: "#fff", padding: 16 }}>
             {selectedNodeInfo && (
-                <div style={{ marginBottom: 16, borderRadius: 8, border: "1px solid #edf1f5", background: "#fff", padding: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}>
-                    <h3 style={{ margin: "0 0 8px 0", color: "var(--text-label)", fontSize: "var(--font-md)", fontWeight: 700 }}>Node information</h3>
+                <div style={{ marginBottom: 16, borderRadius: 8, border: "1px solid var(--table-cell-border)", background: "#fff", padding: 12 }}>
+                    <h3 style={{ margin: "0 0 8px 0", color: "var(--table-header-text)", fontSize: "var(--font-md)", fontWeight: 700 }}>Node information</h3>
                     <div style={panelRowStyle}>
                         <div style={panelLabelStyle}>Entity</div>
                         <div style={{ textAlign: "left" }}>
@@ -428,30 +482,85 @@ function SequenceScrollable({
                         </div>
                     )}
                     {selectedNodeInfo.depth >= 3 && (
-                        <div style={{ ...panelRowStyle, borderBottom: "none" }}>
+                        <div style={panelRowStyle}>
                             <div style={panelLabelStyle}>Status</div>
                             <div style={{ textAlign: "left" }}>
                                 <span className={infoNodeClass(selectedNodeInfo.depth === 3)}>{selectedNodeInfo.status || "-"}</span>
                             </div>
                         </div>
                     )}
+                    {selectedNodeStats && (
+                        <div style={panelRowStyle}>
+                            <div style={panelLabelStyle}>Data Split</div>
+                            <div style={{ ...panelValueStyle, minWidth: 0 }}>
+                                Training: {selectedNodeStats.trainingCount}, Test: {selectedNodeStats.testingCount}
+                            </div>
+                        </div>
+                    )}
+                    {selectedNodeStats && (
+                        <div style={{ ...panelRowStyle, borderBottom: "none" }}>
+                            <div style={panelLabelStyle}>Sequence Labels</div>
+                            <div style={{ ...panelValueStyle, minWidth: 0 }}>
+                                Normal: {selectedNodeStats.normalCount}, Abnormal: {selectedNodeStats.abnormalCount}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
-            {sequences.slice(0, 1000).map((element, index) => {
-                const resolvedVariant = getTableVariant ? getTableVariant(element) : tableVariant;
-                const resolvedBadge = getDataBadgeLabel ? getDataBadgeLabel(element) : dataBadgeLabel;
-                return (
-                    <div key={index} className="scroll-mt-4">
-                        <SequenceUnitDisplay 
-                            orderNum={index+1}
-                            seq={element}
-                            tableVariant={resolvedVariant}
-                            dataBadgeLabel={resolvedBadge}
-                            selectedNodeInfo={selectedNodeInfo}
-                        />
-                    </div>
-                );
-            })}
+            <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {[
+                        { id: "all", label: "All" },
+                        { id: "train", label: "Training only" },
+                        { id: "test", label: "Testing only" },
+                    ].map((scope) => {
+                        const isActive = dataScope === scope.id;
+                        return (
+                            <button
+                                key={scope.id}
+                                type="button"
+                                onClick={() => setDataScope(scope.id as DataScope)}
+                                style={{
+                                    height: 30,
+                                    padding: "0 12px",
+                                    borderRadius: 999,
+                                    border: isActive ? "1px solid #fdba74" : "1px solid #d6d6d6",
+                                    background: isActive ? "#fff7ed" : "#fff",
+                                    color: isActive ? "#9a3412" : "#475569",
+                                    fontSize: "var(--font-sm)",
+                                    fontWeight: 400,
+                                    cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {scope.label}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+            {!sequences || sequences.length === 0 ? (
+                <div style={{ display: "flex", justifyContent: "center", border: "1px solid var(--table-cell-border)", borderRadius: 8, padding: 16, background: "#fff" }}>
+                    <span className="italic text-neutral-500">{NO_SEQUENCES_MESSAGE}</span>
+                </div>
+            ) : (
+                sortedSequences.slice(0, 1000).map((element, index) => {
+                    const resolvedVariant = getTableVariant ? getTableVariant(element) : tableVariant;
+                    const resolvedBadge = getDataBadgeLabel ? getDataBadgeLabel(element) : dataBadgeLabel;
+                    return (
+                        <div key={index} className="scroll-mt-4">
+                            <SequenceUnitDisplay 
+                                orderNum={index+1}
+                                seq={element}
+                                occurrences={getSequenceOccurrences(element)}
+                                tableVariant={resolvedVariant}
+                                dataBadgeLabel={resolvedBadge}
+                                selectedNodeInfo={selectedNodeInfo}
+                            />
+                        </div>
+                    );
+                })
+            )}
         </div>
     );
 }
@@ -467,6 +576,7 @@ type KnowledgeBaseSideBarProps = {
     defaultTab?: "train" | "test" | "approx";
     treeData: TreeNode | null;
     dataScope: DataScope;
+    setDataScope: (scope: DataScope) => void;
 };
 
 // -- KnowledgeBaseSideBar Component -- Takes in knowledge structure data, an inital query search, and a togglesidebar state
@@ -481,10 +591,12 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
     defaultTab = "train",
     treeData = null,
     dataScope,
+    setDataScope,
 }) => {
     void defaultTab;
     const [searchLogKey, setSearchLogKey] = useState<string>("");
     const [currentDataDisplay, setCurrentDataDisplay] = useState<Seq[]>([]);
+    const [scopeDialogMessage, setScopeDialogMessage] = useState<string | null>(null);
 
     const levelRank: Record<string, number> = { ENTITY: 0, ACTION: 1, STATUS: 2 };
     const getSelectedNodeInfo = (tree: TreeNode | null, targetName: string): SelectedNodeInfo | null => {
@@ -555,6 +667,18 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
         return Array.from(new Set<Seq>([...Array.from(trainingSeqSet), ...Array.from(testingSeqSet)]));
     }, [dataScope, trainingSeqSet, testingSeqSet]);
     const selectedNodeInfo = useMemo(() => getSelectedNodeInfo(treeData, query), [treeData, query]);
+    const selectedNodeStats = useMemo<SelectedNodeStats | null>(() => {
+        if (!selectedNodeInfo) return null;
+        const trainingSequences = getSeq(trainingData);
+        const testingSequences = getSeq(testingData);
+        const combinedSequences = [...trainingSequences, ...testingSequences];
+        return {
+            trainingCount: trainingSequences.length,
+            testingCount: testingSequences.length,
+            normalCount: combinedSequences.filter((seq) => !seq.isAnomaly).length,
+            abnormalCount: combinedSequences.filter((seq) => seq.isAnomaly).length,
+        };
+    }, [selectedNodeInfo, trainingData, testingData, query]);
 
     // When the component mounts set the current training and testing displays based off query
     useEffect(() => {
@@ -590,30 +714,62 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
         }
     };
 
+    const handleScopeSelect = (scope: DataScope) => {
+        const basePool =
+            scope === "train"
+                ? Array.from(trainingSeqSet)
+                : scope === "test"
+                    ? Array.from(testingSeqSet)
+                    : Array.from(new Set<Seq>([...Array.from(trainingSeqSet), ...Array.from(testingSeqSet)]));
+        const nextResults = !searchLogKey.trim()
+            ? (() => {
+                const trainSeqs = getSeq(trainingData);
+                const testSeqs = getSeq(testingData);
+                if (scope === "train") return sortCombinedSequences(trainSeqs);
+                if (scope === "test") return sortCombinedSequences(testSeqs);
+                return combineAndSort(trainSeqs, testSeqs);
+            })()
+            : sortCombinedSequences(
+                exactSearch(
+                    basePool,
+                    searchLogKey.split(",").map((key) => key.trim()).filter(Boolean)
+                )
+            );
+
+        if (!nextResults.length) {
+            setScopeDialogMessage(`No sequences found for ${scope === "all" ? "All" : scope === "train" ? "Training only" : "Testing only"}.`);
+            return;
+        }
+
+        setDataScope(scope);
+        setCurrentDataDisplay(nextResults);
+    };
+
     if (!showSidebar) return null;
 
     return (
-        <div className="fixed right-0 top-[4.75rem] h-[calc(100vh-4.75rem)] w-[36%] bg-white text-black rounded-l-lg border-l border-y border-[#edf1f5] shadow-[0_2px_8px_rgba(0,0,0,0.04)] z-40 animate-slide-in-right-fast">
+        <>
+        <div className="fixed right-0 top-[4.75rem] h-[calc(100vh-4.75rem)] w-2/5 bg-white text-black rounded-l-lg border-l border-y border-[#edf1f5] shadow-[0_2px_8px_rgba(0,0,0,0.04)] z-40 animate-slide-in-right-fast">
             { /* -- TITLE DISPLAY W/ CLOSEOUT */}
-            <div className="p-4 flex justify-between items-center">
-                <h2 className="text-xl font-bold font-WPIfont">Knowledge Base</h2>
+            <div className="global-table-header p-4 flex justify-between items-center">
+                <h2 className="global-table-head-cell text-xl font-WPIfont">Knowledge Base</h2>
                 <button onClick={toggleSidebar} className="text-neutral-400 hover:text-black hover:scale-110">
                     <X />
                 </button>
             </div>
 
             { /* EXACT LOGKEY SEARCH */}
-            <form className="p-4 flex items-center justify-center border border-[#edf1f5] border-b-0" onSubmit={handleSearchSubmit}>
+            <form className="p-4 flex items-center justify-center border border-[#edf1f5] border-b-0 bg-white" onSubmit={handleSearchSubmit}>
                 <div className="relative w-full">
                     <input
                         type="text"
                         placeholder={LOGKEY_SEARCH_PLACEHOLDER}
                         value={searchLogKey}
                         onChange={(e) => setSearchLogKey(e.target.value)}
-                        className="w-full p-2 pr-10 bg-white border-4 border-WPIGrey rounded-md placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-500"
+                        className="w-full h-[34px] px-3 pr-10 bg-white border border-[var(--table-cell-border)] rounded-md placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
                     />
                     <button type="submit" className="absolute top-1/2 right-3 transform -translate-y-1/2">
-                        <Search className="w-6 h-6 text-neutral-400 hover:text-black hover:scale-110" />
+                        <Search className="w-4 h-4 text-neutral-400 hover:text-black" />
                     </button>
                 </div>
             </form>
@@ -623,7 +779,73 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
                 getTableVariant={resolveRowTableVariant}
                 getDataBadgeLabel={resolveRowDataBadge}
                 selectedNodeInfo={selectedNodeInfo}
+                selectedNodeStats={selectedNodeStats}
+                dataScope={dataScope}
+                setDataScope={handleScopeSelect}
             />
         </div>
+        {scopeDialogMessage && (
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="No sequences found"
+                style={{
+                    position: "fixed",
+                    inset: 0,
+                    zIndex: 1500,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(15, 23, 42, 0.22)",
+                    padding: 24,
+                }}
+            >
+                <div
+                    style={{
+                        width: "min(420px, calc(100vw - 48px))",
+                        background: "#fff",
+                        border: "1px solid #dbe3ec",
+                        borderRadius: 12,
+                        boxShadow: "0 18px 40px rgba(15,23,42,0.2)",
+                        overflow: "hidden",
+                    }}
+                >
+                    <div
+                        style={{
+                            padding: "12px 16px",
+                            borderBottom: "1px solid var(--table-header-border)",
+                            background: "var(--table-header-bg)",
+                            fontSize: "var(--font-sm)",
+                            fontWeight: 700,
+                            color: "var(--table-header-text)",
+                        }}
+                    >
+                        No Result
+                    </div>
+                    <div style={{ padding: "18px 16px", fontSize: "var(--font-sm)", color: "var(--text-value)", lineHeight: 1.5 }}>
+                        {scopeDialogMessage}
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 16px 16px 16px" }}>
+                        <button
+                            type="button"
+                            onClick={() => setScopeDialogMessage(null)}
+                            style={{
+                                height: 32,
+                                padding: "0 14px",
+                                borderRadius: 8,
+                                border: "1px solid #cbd5e1",
+                                background: "#fff",
+                                color: "#334155",
+                                fontSize: "var(--font-sm)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+        </>
     );
 };

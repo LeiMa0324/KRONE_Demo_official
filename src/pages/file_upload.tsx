@@ -154,11 +154,11 @@ export const FileUpload = () => {
 
                         {csvData && csvData.length > 0 && (
                             <div className="overflow-auto max-h-96 w-full">
-                                <table className="min-w-full border border-gray-300 mt-4 rounded-lg overflow-hidden">
-                                    <thead className="sticky top-0 bg-WPIGrey">
+                                <table className="min-w-full border border-[#edf1f5] mt-4 rounded-lg overflow-hidden">
+                                    <thead className="global-table-header sticky top-0">
                                         <tr>
                                             {csvData[0].map((header, idx) => (
-                                                <th key={idx} className="border px-2 py-1 font-WPIfont font-semibold">{header}</th>
+                                                <th key={idx} className="global-table-head-cell border border-[var(--table-cell-border)]">{header}</th>
                                             ))}
                                         </tr>
                                     </thead>
@@ -166,7 +166,7 @@ export const FileUpload = () => {
                                         {csvData.slice(1, 101).map((row, rowIdx) => (
                                             <tr key={rowIdx} className="font-WPIfont even:bg-gray-50 hover:bg-red-100 transition">
                                                 {row.map((cell, cellIdx) => (
-                                                    <td key={cellIdx} className="font-WPIfont border px-2 py-1">{cell}</td>
+                                                    <td key={cellIdx} className="global-table-cell font-WPIfont border border-[var(--table-cell-border)]">{cell}</td>
                                                 ))}
                                             </tr>
                                         ))}

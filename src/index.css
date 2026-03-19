@@ -45,6 +45,18 @@
   --radius: 0.625rem;
   --text-label: #6b7280;
   --text-value: #111827;
+  --table-header-bg: #f8fafc;
+  --table-header-border: #e2e8f0;
+  --table-header-text: #0f172a;
+  --table-cell-border: #edf1f5;
+  --table-cell-text: #334155;
+  --table-cell-muted-text: #475569;
+  --table-cell-px: 16px;
+  --table-cell-py: 12px;
+  --highlight-text: #003366;
+  --highlight-fill: #b3d8ff;
+  --highlight-border: #60a5fa;
+  --highlight-ring: #93c5fd;
   --font-xs: 12px;
   --font-sm: 13px;
   --font-md: 14px;
@@ -153,6 +165,37 @@
 }
 
 @layer utilities {
+  .global-table-header {
+    background: var(--table-header-bg);
+    border-bottom: 1px solid var(--table-header-border);
+  }
+
+  .global-table-head-cell {
+    color: var(--table-header-text);
+    font-size: var(--font-sm);
+    font-weight: 700;
+    text-align: left;
+    padding: var(--table-cell-py) var(--table-cell-px);
+  }
+
+  .global-table-cell {
+    color: var(--table-cell-text);
+    font-size: var(--font-sm);
+    text-align: left;
+    padding: var(--table-cell-py) var(--table-cell-px);
+    border-bottom: 1px solid var(--table-cell-border);
+  }
+
+  .global-table-cell-muted {
+    color: var(--table-cell-muted-text);
+  }
+
+  .global-highlight-box {
+    border-color: var(--highlight-border);
+    background: var(--highlight-fill);
+    box-shadow: 0 0 0 1px var(--highlight-ring);
+  }
+
   .kv-label {
     color: var(--text-label);
     font-size: var(--font-label);
@@ -255,14 +298,14 @@
 }
 
 .highlighted-node {
-  fill: #003366 !important;
+  fill: var(--highlight-text) !important;
 }
 
 .highlighted-rect {
-  fill: #B3D8FF !important;
+  fill: var(--highlight-fill) !important;
 }
 
 .highlighted-link {
-  stroke: #B3D8FF !important;
+  stroke: var(--highlight-fill) !important;
   stroke-opacity: 1 !important;
 }

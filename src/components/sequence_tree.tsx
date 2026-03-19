@@ -10,9 +10,6 @@ import {
     isNodeHidden,
     arraysEqual,
     getFirstAnomalyReason,
-    ENTITY_BORDER,
-    ACTION_BORDER,
-    STATUS_BORDER,
     BASE_FONT,
     DEPTH_SPACING,
     getFontSize,
@@ -34,11 +31,25 @@ import { withBase } from "@/lib/base-url";
 // Define the props for the SequenceTree component
 type SequenceTreeProps = {
     kroneDecompData: KroneDecompRow[];
+    totalSequenceCount?: number;
+    visibleSequenceCount?: number;
     kroneDetectData: KroneDetectRow[];
     setHoveredNode?: (node: HierarchyNode<TreeNode> | null) => void;
     setMultiLineAnomaly: (isMultiLineAnomaly: boolean) => void;
     multiLineAnomaly: boolean;
     demoMode?: boolean;
+    selectStepLabel?: string;
+    selectControlLabel?: string;
+    decomposeStepLabel?: string;
+    topDescriptionText?: string;
+    hideDetectAndExplainSteps?: boolean;
+    hideSelectStep?: boolean;
+    singleSequenceSectionTitle?: string;
+    batchProcessingSectionTitle?: string;
+    batchProcessingButtonLabel?: string;
+    knowledgeBaseActionLabel?: string;
+    knowledgeBaseActionButtons?: Array<{ id: string; label: string; toastMessage?: string }>;
+    knowledgeBaseActionsInert?: boolean;
 };
 
 
@@ -67,6 +78,48 @@ const normalizeLabelText = (value: string | undefined | null) =>
         .replace(/[\r\n]+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
+
+type OrderedActionSequence = {
+    pathKey: string;
+    label: string;
+    lineNumbers: number[];
+};
+
+type OrderedEntitySequence = {
+    pathKey: string;
+    label: string;
+    actionPathKeys: string[];
+    lineNumbers: number[];
+};
+
+const collectOrderedActionSequences = (treeData: TreeNode | null): OrderedActionSequence[] => {
+    if (!treeData) return [];
+    addIndexPath(treeData);
+    return (treeData.children ?? []).flatMap((entityNode) =>
+        (entityNode.children ?? []).map((actionNode) => ({
+            pathKey: (actionNode.indexPath ?? []).join("."),
+            label: normalizeLabelText(actionNode.name),
+            lineNumbers: (actionNode.children ?? [])
+                .map((statusNode) => statusNode.lineNumber)
+                .filter((lineNumber): lineNumber is number => typeof lineNumber === "number"),
+        }))
+    );
+};
+
+const collectOrderedEntitySequences = (treeData: TreeNode | null): OrderedEntitySequence[] => {
+    if (!treeData) return [];
+    addIndexPath(treeData);
+    return (treeData.children ?? []).map((entityNode) => ({
+        pathKey: (entityNode.indexPath ?? []).join("."),
+        label: normalizeLabelText(entityNode.name),
+        actionPathKeys: (entityNode.children ?? []).map((actionNode) => (actionNode.indexPath ?? []).join(".")),
+        lineNumbers: (entityNode.children ?? []).flatMap((actionNode) =>
+            (actionNode.children ?? [])
+                .map((statusNode) => statusNode.lineNumber)
+                .filter((lineNumber): lineNumber is number => typeof lineNumber === "number")
+        ),
+    }));
+};
 
 
 // Converts a KroneDecompRow to a TreeNode structure, including anomaly detection and log template mapping.
@@ -233,20 +286,35 @@ function getActionHighlightY(
 
 export const SequenceTree: React.FC<SequenceTreeProps> = ({
     kroneDecompData,
+    totalSequenceCount,
+    visibleSequenceCount,
     kroneDetectData,
     setHoveredNode,
     setMultiLineAnomaly,
     multiLineAnomaly,
     demoMode = false,
+    selectStepLabel = "1 Select a test log sequence",
+    selectControlLabel = "Select a test sequence:",
+    decomposeStepLabel = "2 Decompose",
+    topDescriptionText,
+    hideDetectAndExplainSteps = false,
+    hideSelectStep = false,
+    singleSequenceSectionTitle,
+    batchProcessingSectionTitle,
+    batchProcessingButtonLabel,
+    knowledgeBaseActionLabel = "5 Add to Knowledge Base",
+    knowledgeBaseActionButtons,
+    knowledgeBaseActionsInert = false,
 }) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const sequenceSelectRef = useRef<HTMLSelectElement | null>(null);
     const [treeData, setTreeData] = useState<TreeNode | null>(null);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-    const [showSelectControl, setShowSelectControl] = useState(false);
+    const [showSelectControl, setShowSelectControl] = useState(hideSelectStep);
     const [showDecomposed, setShowDecomposed] = useState(false);
     const [showDetected, setShowDetected] = useState(false);
     const [showAnomalyExplanation, setShowAnomalyExplanation] = useState(false);
+    const [hasExplainedAnomaly, setHasExplainedAnomaly] = useState(false);
     const [isDecomposing, setIsDecomposing] = useState(false);
     const [isDetecting, setIsDetecting] = useState(false);
     const [isExplaining, setIsExplaining] = useState(false);
@@ -255,7 +323,20 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const [anomalyLevelMulti, setAnomalyLevelMulti] = useState("Normal");
     const [kbToastMessage, setKbToastMessage] = useState<string | null>(null);
     const [kbToastVisible, setKbToastVisible] = useState(false);
-    const [isAddedToKnowledgeBase, setIsAddedToKnowledgeBase] = useState(false);
+    const [kbDialogMessage, setKbDialogMessage] = useState<string | null>(null);
+    const [savedKnowledgeBaseActionIds, setSavedKnowledgeBaseActionIds] = useState<string[]>([]);
+    const [activeKnowledgeBaseActionPath, setActiveKnowledgeBaseActionPath] = useState<string | null>(null);
+    const [completedKnowledgeBaseActionPaths, setCompletedKnowledgeBaseActionPaths] = useState<string[]>([]);
+    const [activeKnowledgeBaseEntityPath, setActiveKnowledgeBaseEntityPath] = useState<string | null>(null);
+    const [completedKnowledgeBaseEntityPaths, setCompletedKnowledgeBaseEntityPaths] = useState<string[]>([]);
+    const [isActiveKnowledgeBaseRoot, setIsActiveKnowledgeBaseRoot] = useState(false);
+    const [isCompletedKnowledgeBaseRoot, setIsCompletedKnowledgeBaseRoot] = useState(false);
+    const [isSavingStatusSequence, setIsSavingStatusSequence] = useState(false);
+    const [isSavingActionSequence, setIsSavingActionSequence] = useState(false);
+    const [isSavingEntitySequence, setIsSavingEntitySequence] = useState(false);
+    const [isBatchProcessingAllSequences, setIsBatchProcessingAllSequences] = useState(false);
+    const [batchProcessingStepLabel, setBatchProcessingStepLabel] = useState<string | null>(null);
+    const [batchProcessingProgress, setBatchProcessingProgress] = useState(0);
     const [explanationModalPos, setExplanationModalPos] = useState({ x: 220, y: 160 });
     const [explanationModalWidth, setExplanationModalWidth] = useState(460);
     const decomposeTimerRef = useRef<number | null>(null);
@@ -265,6 +346,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const explanationResizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
     const kbToastHideTimerRef = useRef<number | null>(null);
     const kbToastRemoveTimerRef = useRef<number | null>(null);
+    const knowledgeBaseAnimationRunRef = useRef(0);
     const [columnHeaderPos, setColumnHeaderPos] = useState<{
         entityX: number;
         actionX: number;
@@ -285,6 +367,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         }
         setIsExplaining(false);
         setShowAnomalyExplanation(false);
+        setHasExplainedAnomaly(false);
     };
 
     const resetDetectingState = () => {
@@ -302,6 +385,24 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         }
         setIsDecomposing(false);
     };
+
+    const resetKnowledgeBaseSequenceState = useCallback(() => {
+        knowledgeBaseAnimationRunRef.current += 1;
+        setSavedKnowledgeBaseActionIds([]);
+        setActiveKnowledgeBaseActionPath(null);
+        setCompletedKnowledgeBaseActionPaths([]);
+        setActiveKnowledgeBaseEntityPath(null);
+        setCompletedKnowledgeBaseEntityPaths([]);
+        setIsActiveKnowledgeBaseRoot(false);
+        setIsCompletedKnowledgeBaseRoot(false);
+        setIsSavingStatusSequence(false);
+        setIsSavingActionSequence(false);
+        setIsSavingEntitySequence(false);
+        setIsBatchProcessingAllSequences(false);
+        setBatchProcessingStepLabel(null);
+        setBatchProcessingProgress(0);
+        setKbDialogMessage(null);
+    }, []);
 
     useEffect(() => {
         return () => {
@@ -356,8 +457,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             setTreeData(null);
             setColumnHeaderPos(DEFAULT_COLUMN_HEADER_POS);
             setMultiLineAnomaly(false);
-            setIsAddedToKnowledgeBase(false);
-            setShowSelectControl(false);
+            resetKnowledgeBaseSequenceState();
+            setShowSelectControl(hideSelectStep);
             setShowDecomposed(false);
             setShowDetected(false);
             resetDecomposingState();
@@ -388,7 +489,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             setMultiLineAnomaly(false);
         }
         setLoading(false);
-    }, [kroneDecompData, kroneDetectData, selectedIndex, eventIdToLogTemplate, setHoveredNode, showDecomposed, showDetected]);
+    }, [kroneDecompData, kroneDetectData, selectedIndex, eventIdToLogTemplate, setHoveredNode, showDecomposed, showDetected, resetKnowledgeBaseSequenceState, hideSelectStep]);
 
     // Create the tree structure and render it using D3.js
     useEffect(() => {
@@ -401,6 +502,22 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         addIndexPath(treeData); // Ensure index paths are added to the tree nodes
 
         const root = hierarchy<TreeNode>(treeData, d => d.children); // Create a hierarchy from the tree data
+        const completedActionPathSet = new Set(completedKnowledgeBaseActionPaths);
+        const completedEntityPathSet = new Set(completedKnowledgeBaseEntityPaths);
+        const activeEntitySequence = collectOrderedEntitySequences(treeData)
+            .find((sequence) => sequence.pathKey === activeKnowledgeBaseEntityPath);
+        const activeEntityActionPathSet = new Set(activeEntitySequence?.actionPathKeys ?? []);
+        const activeActionLineNumbers = new Set(
+            [
+                ...(collectOrderedActionSequences(treeData)
+                    .find((sequence) => sequence.pathKey === activeKnowledgeBaseActionPath)
+                    ?.lineNumbers ?? []),
+                ...(activeEntitySequence?.lineNumbers ?? []),
+                ...(isActiveKnowledgeBaseRoot
+                    ? collectOrderedActionSequences(treeData).flatMap((sequence) => sequence.lineNumbers)
+                    : []),
+            ]
+        );
 
         const font = getCssVar('--font-WPIfont') || "sans-serif";
         const widestByDepth = getWidestByDepth(treeData, font); // Get the widest label width for each depth in the tree
@@ -418,9 +535,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             stableWidestByDepth = getWidestByDepth(decomposedPreviewTree, font);
             measurementTree = decomposedPreviewTree;
         }
-        widestByDepth[1] = Math.max(widestByDepth[1] || 0, stableWidestByDepth?.[1] || 0, 140);
-        widestByDepth[2] = Math.max(widestByDepth[2] || 0, stableWidestByDepth?.[2] || 0, 140);
-        widestByDepth[3] = Math.max(widestByDepth[3] || 0, stableWidestByDepth?.[3] || 0, 140);
+        widestByDepth[1] = Math.max(widestByDepth[1] || 0, stableWidestByDepth?.[1] || 0, 118);
+        widestByDepth[2] = Math.max(widestByDepth[2] || 0, stableWidestByDepth?.[2] || 0, 118);
+        widestByDepth[3] = Math.max(widestByDepth[3] || 0, stableWidestByDepth?.[3] || 0, 118);
 
         const entitySpacing = 14; // Initial spacing between entities before topAlign
         const dy = Math.max(widestByDepth[1], widestByDepth[2]); // Spacing between actions and statuses
@@ -459,7 +576,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             }
         }
 
-        const extraColSpacing = [0, 10, 14, 14]; // Extra spacing for each depth
+        const extraColSpacing = [0, 6, 8, 8]; // Extra spacing for each depth
         const colOffsets = [0];
         // Calculate the cumulative offsets for each column based on the widest label at that depth
         for (let i = 1; i < widestByDepth.length; i++) {
@@ -521,7 +638,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         measurementRoot.descendants().forEach(node => {
             if (node.depth === 3) {
                 const fontSize = getFontSize(node.depth);
-                const valueFontSize = Math.max(fontSize * 0.8, 14);
+                const valueFontSize = Math.max(fontSize * 0.9, 12);
 
                 const tempStatusText = tempSvg2.append("text")
                     .attr("font-size", fontSize)
@@ -640,80 +757,115 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
 
         // Function to highlight text and links related to the hovered node
         function highlightText(this: SVGElement, _event: unknown, d: HierarchyNode<TreeNode>) {
-            const ancestorNodes = new Set<HierarchyNode<TreeNode>>();
-            let current: HierarchyNode<TreeNode> | null = d;
-
-            // Collect all ancestor and parent nodes of the hovered node
-            while (current) {
-                ancestorNodes.add(current);
-                current = current.parent;
+            if (isSavingStatusSequence) return;
+            const relatedNodes = new Set<HierarchyNode<TreeNode>>();
+            const relatedStatusNodes = d.descendants().filter((node) => node.depth === 3);
+            const relatedLineNumbers = new Set(
+                relatedStatusNodes
+                    .map((node) => node.data.lineNumber)
+                    .filter((lineNumber): lineNumber is number => typeof lineNumber === "number")
+            );
+            if (hideDetectAndExplainSteps) {
+                d.descendants().forEach((node) => relatedNodes.add(node));
+            } else {
+                let current: HierarchyNode<TreeNode> | null = d;
+                while (current) {
+                    relatedNodes.add(current);
+                    current = current.parent;
+                }
             }
 
             // Highlight the text and links related to the hovered node
             svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-label")
                 .each(function (n) {
-                    const isRelated = ancestorNodes.has(n);
+                    const isRelated = relatedNodes.has(n);
                     const isRelatedAnomaly = isRelated && !!n.data.isAnomaly;
+                    const pathKey = (n.data.indexPath || []).join(".");
+                    const isActiveRoot = n.depth === 0 && isActiveKnowledgeBaseRoot;
+                    const isCompletedRoot = n.depth === 0 && isCompletedKnowledgeBaseRoot;
+                    const isCompletedEntity = n.depth === 1 && completedEntityPathSet.has(pathKey);
+                    const isActiveEntity = n.depth === 1 && pathKey === activeKnowledgeBaseEntityPath;
+                    const isActiveEntityAction = n.depth === 2 && activeEntityActionPathSet.has(pathKey);
                     select(this)
                         .attr("fill",
-                            isRelatedAnomaly
+                            isCompletedRoot || isCompletedEntity
+                                ? "#166534"
+                                : isActiveRoot || isActiveEntity || isActiveEntityAction
+                                    ? "var(--highlight-text)"
+                                    : isRelatedAnomaly
                                 ? "#F00"
-                                : (isRelated ? "#003366" : (n.data.isAnomaly ? "#F00" : "#222"))
+                                : (isRelated ? "var(--highlight-text)" : (n.data.isAnomaly ? "#F00" : "#222"))
                         );
                     const rects = select(this.parentNode as Element).selectAll("rect").nodes();
                     if (rects.length > 0) {
                         select(rects[0])
-                            .attr("fill", isRelated ? "#B3D8FF" : NODE_STYLE_FILL)
-                            .attr("stroke", isRelated ? "#B3D8FF" : NODE_STYLE_STROKE)
-                            .attr("stroke-width", isRelated ? 5 : 2);
+                            .attr("fill", isActiveRoot || isActiveEntity || isActiveEntityAction || isRelated ? "var(--highlight-fill)" : isCompletedRoot || isCompletedEntity ? "#f0fdf4" : NODE_STYLE_FILL)
+                            .attr("stroke", isActiveRoot || isActiveEntity || isActiveEntityAction || isRelated ? "var(--highlight-fill)" : isCompletedRoot || isCompletedEntity ? "#22c55e" : NODE_STYLE_STROKE)
+                            .attr("stroke-width", isActiveRoot || isActiveEntity || isActiveEntityAction || isRelated ? 5 : isCompletedRoot || isCompletedEntity ? 3 : 2);
                     }
                 });
 
-                // Highlight log template text based on the hovered node
-                if (d.depth === 3 && typeof d.data.lineNumber === "number") {
-                    svg.selectAll<SVGTextElement, TreeNode>("text.auxiliary-status-text")
-                        .each(function () {
-                            select(this)
-                                .attr("font-weight", 400)
-                        });
-                }
+            svg.selectAll<SVGTextElement, TreeNode>("text.auxiliary-status-text")
+                .each(function (row) {
+                    const isRelated = typeof row.lineNumber === "number" && relatedLineNumbers.has(row.lineNumber);
+                    const defaultColor = (row.isAnomaly || row.isRelatedToAnomaly) ? "#F00" : "#000";
+                    select(this)
+                        .attr("fill", isRelated ? "var(--highlight-text)" : defaultColor)
+                        .attr("font-weight", isRelated ? 700 : ((row.isAnomaly || row.isRelatedToAnomaly) ? 600 : 400));
+                });
 
             // Highlight links based on ancestor and descendant relationships
             if (showDecomposed) {
                 svg.selectAll<SVGPathElement, HierarchyLink<TreeNode>>("path")
                     .attr("stroke", lnk => {
-                        const isAncestorPath =
-                            ancestorNodes.has(lnk.source as HierarchyNode<TreeNode>) &&
-                            ancestorNodes.has(lnk.target as HierarchyNode<TreeNode>);
-                        return isAncestorPath ? "#B3D8FF" : linkBorderColor(lnk);
+                        const isRelatedPath =
+                            relatedNodes.has(lnk.source as HierarchyNode<TreeNode>) &&
+                            relatedNodes.has(lnk.target as HierarchyNode<TreeNode>);
+                        return isRelatedPath ? "var(--highlight-fill)" : linkBorderColor(lnk);
                     })
                     .attr("stroke-width", lnk => {
-                        const isAncestorPath =
-                            ancestorNodes.has(lnk.source as HierarchyNode<TreeNode>) &&
-                            ancestorNodes.has(lnk.target as HierarchyNode<TreeNode>);
-                        return isAncestorPath ? 5 : 1.5;
+                        const isRelatedPath =
+                            relatedNodes.has(lnk.source as HierarchyNode<TreeNode>) &&
+                            relatedNodes.has(lnk.target as HierarchyNode<TreeNode>);
+                        return isRelatedPath ? 5 : 1.5;
                     });
             }
         }
 
         // Function to unhighlight text and links when the mouse leaves the node
         function unhighlightText(this: SVGElement) {
+            if (isSavingStatusSequence) return;
             svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-label")
                 .each(function (n) {
+                    const pathKey = (n.data.indexPath || []).join(".");
+                    const isCompletedRoot = n.depth === 0 && isCompletedKnowledgeBaseRoot;
+                    const isActiveRoot = n.depth === 0 && isActiveKnowledgeBaseRoot;
+                    const isCompletedAction = n.depth === 2 && completedActionPathSet.has(pathKey);
+                    const isCompletedEntity = n.depth === 1 && completedEntityPathSet.has(pathKey);
+                    const isActiveEntity = n.depth === 1 && pathKey === activeKnowledgeBaseEntityPath;
+                    const isActiveEntityAction = n.depth === 2 && activeEntityActionPathSet.has(pathKey);
                     select(this)
-                        .attr("fill", n.data.isAnomaly ? "#F00" : "#000");
+                        .attr("fill", n.data.isAnomaly ? "#F00" : isCompletedRoot || isCompletedEntity || isCompletedAction ? "#166534" : isActiveRoot || isActiveEntity || isActiveEntityAction ? "var(--highlight-text)" : "#000");
                     // Only update the first rect (the node label background), not all rects in the group
                     const rects = select(this.parentNode as Element).selectAll("rect").nodes();
                     if (rects.length > 0) {
                         select(rects[0])
-                            .attr("fill", NODE_STYLE_FILL)
-                            .attr("stroke", NODE_STYLE_STROKE)
-                            .attr("stroke-width", 2);
+                            .attr("fill", isActiveRoot || isActiveEntity || isActiveEntityAction ? "var(--highlight-fill)" : isCompletedRoot || isCompletedEntity || isCompletedAction ? "#f0fdf4" : NODE_STYLE_FILL)
+                            .attr("stroke", isActiveRoot || isActiveEntity || isActiveEntityAction ? "var(--highlight-fill)" : isCompletedRoot || isCompletedEntity || isCompletedAction ? "#22c55e" : NODE_STYLE_STROKE)
+                            .attr("stroke-width", isActiveRoot || isActiveEntity || isActiveEntityAction ? 5 : isCompletedRoot || isCompletedEntity || isCompletedAction ? 3 : 2);
                     }
                 });
             svg.selectAll<SVGTextElement, TreeNode>("text.auxiliary-status-text")
-                .attr("fill", d => (d.isAnomaly || d.isRelatedToAnomaly) ? "#F00" : "#000")
-                .attr("font-weight", d => (d.isAnomaly || d.isRelatedToAnomaly) ? 600 : 400);
+                .attr("fill", d => {
+                    const isActive = typeof d.lineNumber === "number" && activeActionLineNumbers.has(d.lineNumber);
+                    if (isActive) return "var(--highlight-text)";
+                    return (d.isAnomaly || d.isRelatedToAnomaly) ? "#F00" : "#000";
+                })
+                .attr("font-weight", d => {
+                    const isActive = typeof d.lineNumber === "number" && activeActionLineNumbers.has(d.lineNumber);
+                    if (isActive) return 700;
+                    return (d.isAnomaly || d.isRelatedToAnomaly) ? 600 : 400;
+                });
             if (showDecomposed) {
                 svg.selectAll<SVGPathElement, HierarchyLink<TreeNode>>("path")
                     .attr("stroke", linkBorderColor)
@@ -748,6 +900,15 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                 const fontSize = getFontSize(d.depth), padding = getPadding(fontSize), radius = getRadius(fontSize);
                 const nodeGroup = select(this.parentNode as Element);
                 const bbox = this.getBBox();
+                const pathKey = (d.data.indexPath || []).join(".");
+                const isActiveKnowledgeBaseRootNode = d.depth === 0 && isActiveKnowledgeBaseRoot;
+                const isCompletedKnowledgeBaseRootNode = d.depth === 0 && isCompletedKnowledgeBaseRoot;
+                const isActiveKnowledgeBaseEntity = d.depth === 1 && pathKey === activeKnowledgeBaseEntityPath;
+                const isCompletedKnowledgeBaseEntity = d.depth === 1 && completedEntityPathSet.has(pathKey);
+                const isActiveKnowledgeBaseAction = d.depth === 2 && pathKey === activeKnowledgeBaseActionPath;
+                const isActiveKnowledgeBaseEntityAction = d.depth === 2 && activeEntityActionPathSet.has(pathKey);
+                const isCompletedKnowledgeBaseAction = d.depth === 2 && completedActionPathSet.has(pathKey);
+                const isActiveKnowledgeBaseStatus = d.depth === 3 && typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber);
                 // Calculate the width of the node label and adjust the rectangle accordingly
                 if (d.depth === 0 && showDecomposed) {
                     const rectWidth = Math.max(bbox.width + padding * 2, 52);
@@ -756,8 +917,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("y", bbox.y - padding / 2)
                         .attr("width", rectWidth)
                         .attr("height", bbox.height + padding)
-                        .attr("fill", NODE_STYLE_FILL)
-                        .attr("stroke", NODE_STYLE_STROKE)
+                        .attr("fill", isActiveKnowledgeBaseRootNode ? "var(--highlight-fill)" : isCompletedKnowledgeBaseRootNode ? "#f0fdf4" : NODE_STYLE_FILL)
+                        .attr("stroke", isActiveKnowledgeBaseRootNode ? "var(--highlight-fill)" : isCompletedKnowledgeBaseRootNode ? "#22c55e" : NODE_STYLE_STROKE)
+                        .attr("stroke-width", isActiveKnowledgeBaseRootNode ? 5 : isCompletedKnowledgeBaseRootNode ? 3 : 2)
                         .attr("rx", radius)
                         .attr("ry", radius);
                 } else if (showDecomposed && d.depth >= 1 && d.depth <= 3) {
@@ -768,10 +930,17 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("y", bbox.y - padding / 2)
                         .attr("width", rectWidth)
                         .attr("height", bbox.height + padding)
-                        .attr("fill", NODE_STYLE_FILL)
-                        .attr("stroke", NODE_STYLE_STROKE)
+                        .attr("fill", isActiveKnowledgeBaseEntity || isActiveKnowledgeBaseAction || isActiveKnowledgeBaseEntityAction || isActiveKnowledgeBaseStatus ? "var(--highlight-fill)" : isCompletedKnowledgeBaseEntity || isCompletedKnowledgeBaseAction ? "#f0fdf4" : NODE_STYLE_FILL)
+                        .attr("stroke", isActiveKnowledgeBaseEntity || isActiveKnowledgeBaseAction || isActiveKnowledgeBaseEntityAction || isActiveKnowledgeBaseStatus ? "var(--highlight-fill)" : isCompletedKnowledgeBaseEntity || isCompletedKnowledgeBaseAction ? "#22c55e" : NODE_STYLE_STROKE)
+                        .attr("stroke-width", isActiveKnowledgeBaseEntity || isActiveKnowledgeBaseAction || isActiveKnowledgeBaseEntityAction || isActiveKnowledgeBaseStatus ? 5 : isCompletedKnowledgeBaseEntity || isCompletedKnowledgeBaseAction ? 3 : 2)
                         .attr("rx", radius)
                         .attr("ry", radius);
+                }
+
+                if (isActiveKnowledgeBaseRootNode || isCompletedKnowledgeBaseRootNode || isActiveKnowledgeBaseEntity || isCompletedKnowledgeBaseEntity || isActiveKnowledgeBaseAction || isActiveKnowledgeBaseEntityAction || isCompletedKnowledgeBaseAction || isActiveKnowledgeBaseStatus) {
+                    select(this)
+                        .attr("fill", isCompletedKnowledgeBaseRootNode || isCompletedKnowledgeBaseEntity || isCompletedKnowledgeBaseAction ? "#166534" : "var(--highlight-text)")
+                        .attr("font-weight", 700);
                 }
 
                 // If the node is at depth 3, render the log template text
@@ -779,7 +948,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                     const eventId = d.data.event_id || "-";
                     const logTemplate = eventIdToLogTemplate[d.data.event_id || ""] || d.data.log_template || "-";
                     const y = bbox.y + bbox.height / 2 + 2;
-                    const fontSizeLog = Math.max(fontSize * 0.8, 14);
+                    const fontSizeLog = Math.max(fontSize * 0.9, 12);
                     const isAnomalyRelatedRow = !!d.data.isAnomaly || !!d.data.isRelatedToAnomaly;
                     const valueColor = isAnomalyRelatedRow ? "#F00" : "#000";
                     const nodeBaseX = d.y ?? 0;
@@ -794,8 +963,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("y", y)
                         .attr("alignment-baseline", "middle")
                         .attr("font-size", fontSizeLog)
-                        .attr("fill", valueColor)
-                        .attr("font-weight", isAnomalyRelatedRow ? 600 : 400)
+                        .attr("fill", typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber) ? "var(--highlight-text)" : valueColor)
+                        .attr("font-weight", typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber) ? 700 : isAnomalyRelatedRow ? 600 : 400)
                         .attr("text-anchor", "start")
                         .style("white-space", "nowrap")
                         .text(typeof d.data.lineNumber === "number" ? String(d.data.lineNumber) : "-")
@@ -811,8 +980,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("y", y)
                         .attr("alignment-baseline", "middle")
                         .attr("font-size", fontSizeLog)
-                        .attr("fill", valueColor)
-                        .attr("font-weight", isAnomalyRelatedRow ? 600 : 400)
+                        .attr("fill", typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber) ? "var(--highlight-text)" : valueColor)
+                        .attr("font-weight", typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber) ? 700 : isAnomalyRelatedRow ? 600 : 400)
                         .attr("text-anchor", "start")
                         .style("white-space", "nowrap")
                         .text(eventId)
@@ -828,8 +997,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("y", y)
                         .attr("alignment-baseline", "middle")
                         .attr("font-size", fontSizeLog)
-                        .attr("fill", valueColor)
-                        .attr("font-weight", isAnomalyRelatedRow ? 600 : 400)
+                        .attr("fill", typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber) ? "var(--highlight-text)" : valueColor)
+                        .attr("font-weight", typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber) ? 700 : isAnomalyRelatedRow ? 600 : 400)
                         .attr("text-anchor", "start")
                         .style("white-space", "nowrap")
                         .text(normalizeLabelText(logTemplate))
@@ -881,6 +1050,72 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("text-anchor", "start")
                         .style("cursor", "pointer")
                         .text(!reason ? "" : multiLineAnomaly ? "🚨" : "⚠️")
+                }
+
+                if (d.depth === 2 && isCompletedKnowledgeBaseAction) {
+                    const badgeSize = 16;
+                    const badgeX = bbox.x + bbox.width + padding + 10;
+                    const badgeY = bbox.y + bbox.height / 2 + 1;
+                    nodeGroup.append("circle")
+                        .attr("cx", badgeX)
+                        .attr("cy", badgeY)
+                        .attr("r", badgeSize / 2)
+                        .attr("fill", "#22c55e")
+                        .attr("stroke", "#16a34a")
+                        .attr("stroke-width", 1.5);
+                    nodeGroup.append("text")
+                        .attr("x", badgeX)
+                        .attr("y", badgeY + 0.5)
+                        .attr("alignment-baseline", "middle")
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("font-weight", 700)
+                        .attr("fill", "#fff")
+                        .text("✓");
+                }
+
+                if (d.depth === 1 && isCompletedKnowledgeBaseEntity) {
+                    const badgeSize = 16;
+                    const badgeX = bbox.x + bbox.width + padding + 10;
+                    const badgeY = bbox.y + bbox.height / 2 + 1;
+                    nodeGroup.append("circle")
+                        .attr("cx", badgeX)
+                        .attr("cy", badgeY)
+                        .attr("r", badgeSize / 2)
+                        .attr("fill", "#22c55e")
+                        .attr("stroke", "#16a34a")
+                        .attr("stroke-width", 1.5);
+                    nodeGroup.append("text")
+                        .attr("x", badgeX)
+                        .attr("y", badgeY + 0.5)
+                        .attr("alignment-baseline", "middle")
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("font-weight", 700)
+                        .attr("fill", "#fff")
+                        .text("✓");
+                }
+
+                if (d.depth === 0 && isCompletedKnowledgeBaseRootNode) {
+                    const badgeSize = 16;
+                    const badgeX = bbox.x + bbox.width + padding + 10;
+                    const badgeY = bbox.y + bbox.height / 2 + 1;
+                    nodeGroup.append("circle")
+                        .attr("cx", badgeX)
+                        .attr("cy", badgeY)
+                        .attr("r", badgeSize / 2)
+                        .attr("fill", "#22c55e")
+                        .attr("stroke", "#16a34a")
+                        .attr("stroke-width", 1.5);
+                    nodeGroup.append("text")
+                        .attr("x", badgeX)
+                        .attr("y", badgeY + 0.5)
+                        .attr("alignment-baseline", "middle")
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("font-weight", 700)
+                        .attr("fill", "#fff")
+                        .text("✓");
                 }
             });
 
@@ -999,6 +1234,13 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         selectedIndex,
         kroneDecompData,
         kroneDetectData,
+        activeKnowledgeBaseActionPath,
+        completedKnowledgeBaseActionPaths,
+        activeKnowledgeBaseEntityPath,
+        completedKnowledgeBaseEntityPaths,
+        isActiveKnowledgeBaseRoot,
+        isCompletedKnowledgeBaseRoot,
+        isSavingStatusSequence,
     ]);
 
     const selectedSeqId = selectedIndex === null ? undefined : kroneDecompData[selectedIndex]?.seq_id; // Get the selected sequence ID from the decomposition data
@@ -1010,7 +1252,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             abnormalSeqIdSet.has(row.seq_id) ? count + 1 : count
         ), 0);
     }, [kroneDecompData, abnormalSeqIdSet]);
-    const normalSequenceCount = kroneDecompData.length - abnormalSequenceCount;
+    const resolvedTotalSequenceCount = totalSequenceCount ?? kroneDecompData.length;
+    const resolvedVisibleSequenceCount = visibleSequenceCount ?? kroneDecompData.length;
     const sortedSequenceRows = useMemo(() => {
         return kroneDecompData
             .sort((a, b) => {
@@ -1058,25 +1301,66 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         const level = levelRaw.charAt(0).toUpperCase() + levelRaw.slice(1).toLowerCase();
         return `${level} level`;
     })();
+    const anomalyLevelText = (() => {
+        const levelRaw = String(anomalyRow?.anomaly_level ?? "").trim();
+        if (!levelRaw) return "-";
+        return `${levelRaw.charAt(0).toUpperCase()}${levelRaw.slice(1).toLowerCase()}`;
+    })();
+    const anomalyParentNodeText = (() => {
+        if (!selectedDecomp || anomalyStartLine === null || !anomalyRow?.anomaly_level) return "-";
+        if (anomalyRow.anomaly_level === "status") {
+            const actionName = normalizeLabelText(selectedDecomp.action_nodes_for_logkeys[anomalyStartLine]) || "-";
+            return `${actionName} (Action)`;
+        }
+        if (anomalyRow.anomaly_level === "action") {
+            const entityName = normalizeLabelText(selectedDecomp.entity_nodes_for_logkeys[anomalyStartLine]) || "-";
+            return `${entityName} (Entity)`;
+        }
+        if (anomalyRow.anomaly_level === "entity") {
+            return "Root (Root)";
+        }
+        return "-";
+    })();
 
     type FlowStepId = "select" | "decompose" | "detect" | "explain";
     const canDecompose = !!selectedSeqId && !showDecomposed && !isDecomposing;
     const canDetect = !!selectedSeqId && showDecomposed && !showDetected && !isDetecting && !isDecomposing;
     const canExplain = showDetected && anomalyLevel === "Abnormal" && anomalyLogKeysForSeq.length > 0;
-    const canAddToKnowledgeBase = showDetected && anomalyLevel === "Abnormal" && anomalyLogKeysForSeq.length > 0;
+    const canAddToKnowledgeBase = hideDetectAndExplainSteps
+        ? !!selectedSeqId && showDecomposed
+        : showDetected && anomalyLevel === "Abnormal" && anomalyLogKeysForSeq.length > 0;
+    const resolvedKnowledgeBaseButtons = knowledgeBaseActionButtons?.length
+        ? knowledgeBaseActionButtons
+        : [{ id: "default", label: knowledgeBaseActionLabel, toastMessage: "abnormal segment has been added to knowledge base!" }];
+    const orderedActionSequences = useMemo(() => collectOrderedActionSequences(treeData), [treeData]);
+    const orderedEntitySequences = useMemo(() => collectOrderedEntitySequences(treeData), [treeData]);
+    const canBatchProcessAllTrainingSequences =
+        !!selectedSeqId &&
+        showDecomposed &&
+        resolvedKnowledgeBaseButtons.every((actionButton) => savedKnowledgeBaseActionIds.includes(actionButton.id)) &&
+        !isSavingStatusSequence &&
+        !isSavingActionSequence &&
+        !isSavingEntitySequence &&
+        !isBatchProcessingAllSequences;
     const hasIntermediateSection = showSelectControl || showDetected;
+    const showDualSectionHeader = !!singleSequenceSectionTitle || !!batchProcessingSectionTitle || !!batchProcessingButtonLabel;
     const activeStepId: FlowStepId = (() => {
         if (isExplaining || showAnomalyExplanation) return "explain";
         if (isDetecting || showDetected) return "detect";
         if (isDecomposing || showDecomposed) return "decompose";
         return "select";
     })();
-    const flowSteps: Array<{ id: FlowStepId; label: string; done: boolean; disabled: boolean }> = [
-        { id: "select", label: "1 Select a test log sequence", done: !!selectedSeqId, disabled: false },
-        { id: "decompose", label: "2 Decompose", done: showDecomposed, disabled: !selectedSeqId || isDecomposing },
+    const baseFlowSteps: Array<{ id: FlowStepId; label: string; done: boolean; disabled: boolean }> = [
+        { id: "select", label: selectStepLabel, done: !!selectedSeqId, disabled: false },
+        { id: "decompose", label: decomposeStepLabel, done: showDecomposed, disabled: !selectedSeqId || isDecomposing },
         { id: "detect", label: "3 Detect and localize", done: showDetected, disabled: !selectedSeqId || !showDecomposed },
-        { id: "explain", label: "4 Explain", done: showAnomalyExplanation, disabled: !canExplain && !showAnomalyExplanation },
+        { id: "explain", label: "4 Explain", done: hasExplainedAnomaly, disabled: !canExplain && !hasExplainedAnomaly },
     ];
+    const flowSteps: Array<{ id: FlowStepId; label: string; done: boolean; disabled: boolean }> = baseFlowSteps.filter(
+        (step) =>
+            (!hideDetectAndExplainSteps || (step.id !== "detect" && step.id !== "explain")) &&
+            (!hideSelectStep || step.id !== "select")
+    );
 
     const unifiedLabelWidth = 248;
     const controlLabelStyle = {
@@ -1111,7 +1395,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
 
     const openSelectControl = () => {
         setHoveredNode?.(null);
-        setIsAddedToKnowledgeBase(false);
+        resetKnowledgeBaseSequenceState();
         setShowSelectControl(true);
         setShowDecomposed(false);
         setShowDetected(false);
@@ -1130,6 +1414,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         }
         if (!canDecompose) return;
         setHoveredNode?.(null);
+        resetKnowledgeBaseSequenceState();
         setShowDecomposed(false);
         setShowDetected(false);
         resetDecomposingState();
@@ -1163,6 +1448,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setIsExplaining(true);
         explainTimerRef.current = window.setTimeout(() => {
             setIsExplaining(false);
+            setHasExplainedAnomaly(true);
             setShowAnomalyExplanation(true);
             explainTimerRef.current = null;
         }, 900);
@@ -1177,6 +1463,138 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
         }
     };
+
+    const waitForKnowledgeBaseAnimation = (ms: number) =>
+        new Promise<void>((resolve) => {
+            window.setTimeout(resolve, ms);
+        });
+
+    const runStatusSequenceKnowledgeBaseSave = useCallback(async () => {
+        if (!canAddToKnowledgeBase || isSavingStatusSequence || !orderedActionSequences.length) return;
+        const currentRunId = knowledgeBaseAnimationRunRef.current + 1;
+        knowledgeBaseAnimationRunRef.current = currentRunId;
+        setHoveredNode?.(null);
+        setIsSavingStatusSequence(true);
+        setSavedKnowledgeBaseActionIds((prev) => prev.filter((id) => id !== "status-seq"));
+        setActiveKnowledgeBaseActionPath(null);
+        setCompletedKnowledgeBaseActionPaths([]);
+        setActiveKnowledgeBaseEntityPath(null);
+        setCompletedKnowledgeBaseEntityPaths([]);
+
+        for (const actionSequence of orderedActionSequences) {
+            if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+            setActiveKnowledgeBaseActionPath(actionSequence.pathKey);
+            const firstLineNumber = actionSequence.lineNumbers[0];
+            if (typeof firstLineNumber === "number") {
+                const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
+                rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            }
+            await waitForKnowledgeBaseAnimation(550);
+            if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+            setCompletedKnowledgeBaseActionPaths((prev) =>
+                prev.includes(actionSequence.pathKey) ? prev : [...prev, actionSequence.pathKey]
+            );
+            await waitForKnowledgeBaseAnimation(260);
+        }
+
+        if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+        setActiveKnowledgeBaseActionPath(null);
+        setSavedKnowledgeBaseActionIds((prev) => (
+            prev.includes("status-seq") ? prev : [...prev, "status-seq"]
+        ));
+        setIsSavingStatusSequence(false);
+        setKbDialogMessage(
+            `${orderedActionSequences.length} number of status-seqs of ${orderedActionSequences.length} actions, have been added to knowledge base as ground-truth!`
+        );
+    }, [canAddToKnowledgeBase, isSavingStatusSequence, orderedActionSequences, setHoveredNode]);
+
+    const runActionSequenceKnowledgeBaseSave = useCallback(async () => {
+        if (!canAddToKnowledgeBase || isSavingActionSequence || !orderedEntitySequences.length) return;
+        const currentRunId = knowledgeBaseAnimationRunRef.current + 1;
+        knowledgeBaseAnimationRunRef.current = currentRunId;
+        setHoveredNode?.(null);
+        setIsSavingActionSequence(true);
+        setSavedKnowledgeBaseActionIds((prev) => prev.filter((id) => id !== "action-seq"));
+        setActiveKnowledgeBaseActionPath(null);
+        setActiveKnowledgeBaseEntityPath(null);
+        setCompletedKnowledgeBaseEntityPaths([]);
+
+        for (const entitySequence of orderedEntitySequences) {
+            if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+            setActiveKnowledgeBaseEntityPath(entitySequence.pathKey);
+            const firstLineNumber = entitySequence.lineNumbers[0];
+            if (typeof firstLineNumber === "number") {
+                const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
+                rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            }
+            await waitForKnowledgeBaseAnimation(550);
+            if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+            setCompletedKnowledgeBaseEntityPaths((prev) =>
+                prev.includes(entitySequence.pathKey) ? prev : [...prev, entitySequence.pathKey]
+            );
+            await waitForKnowledgeBaseAnimation(260);
+        }
+
+        if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+        setActiveKnowledgeBaseEntityPath(null);
+        setSavedKnowledgeBaseActionIds((prev) => (
+            prev.includes("action-seq") ? prev : [...prev, "action-seq"]
+        ));
+        setIsSavingActionSequence(false);
+        setKbDialogMessage(
+            `${orderedEntitySequences.length} number of action-seqs of ${orderedEntitySequences.length} entities, have been added to knowledge base as ground-truth!`
+        );
+    }, [canAddToKnowledgeBase, isSavingActionSequence, orderedEntitySequences, setHoveredNode]);
+
+    const runEntitySequenceKnowledgeBaseSave = useCallback(async () => {
+        if (!canAddToKnowledgeBase || isSavingEntitySequence || !treeData) return;
+        const currentRunId = knowledgeBaseAnimationRunRef.current + 1;
+        knowledgeBaseAnimationRunRef.current = currentRunId;
+        setHoveredNode?.(null);
+        setIsSavingEntitySequence(true);
+        setSavedKnowledgeBaseActionIds((prev) => prev.filter((id) => id !== "entity-seq"));
+        setActiveKnowledgeBaseActionPath(null);
+        setActiveKnowledgeBaseEntityPath(null);
+        setIsActiveKnowledgeBaseRoot(true);
+
+        const firstLineNumber = collectOrderedActionSequences(treeData)[0]?.lineNumbers[0];
+        if (typeof firstLineNumber === "number") {
+            const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
+            rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        }
+
+        await waitForKnowledgeBaseAnimation(650);
+        if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
+        setIsActiveKnowledgeBaseRoot(false);
+        setIsCompletedKnowledgeBaseRoot(true);
+        setSavedKnowledgeBaseActionIds((prev) => (
+            prev.includes("entity-seq") ? prev : [...prev, "entity-seq"]
+        ));
+        setIsSavingEntitySequence(false);
+        setKbDialogMessage(
+            "1 number of entity-seqs of 1 root node, have been added to knowledge base as ground-truth!"
+        );
+    }, [canAddToKnowledgeBase, isSavingEntitySequence, setHoveredNode, treeData]);
+
+    const runBatchProcessAllTrainingSequences = useCallback(async () => {
+        if (!canBatchProcessAllTrainingSequences) return;
+        setIsBatchProcessingAllSequences(true);
+        setBatchProcessingProgress(0);
+        setBatchProcessingStepLabel("Storing status seq...");
+        await waitForKnowledgeBaseAnimation(700);
+        setBatchProcessingProgress(33);
+        setBatchProcessingStepLabel("Storing action seq...");
+        await waitForKnowledgeBaseAnimation(700);
+        setBatchProcessingProgress(66);
+        setBatchProcessingStepLabel("Storing entity seq...");
+        await waitForKnowledgeBaseAnimation(700);
+        setBatchProcessingProgress(100);
+        setBatchProcessingStepLabel(null);
+        setIsBatchProcessingAllSequences(false);
+        setKbDialogMessage(
+            `status seq: 49, action seq: 66, entity seq: 134 from ${resolvedTotalSequenceCount} log sequences are added to the knowledge base!`
+        );
+    }, [canBatchProcessAllTrainingSequences, resolvedTotalSequenceCount]);
 
     const showKnowledgeBaseToast = (message: string) => {
         setKbToastMessage(message);
@@ -1210,6 +1628,10 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             setKbToastMessage(null);
             kbToastRemoveTimerRef.current = null;
         }, 180);
+    };
+
+    const dismissKnowledgeBaseDialog = () => {
+        setKbDialogMessage(null);
     };
 
     const handleExplanationModalMouseMove = useCallback((event: MouseEvent) => {
@@ -1307,13 +1729,40 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                             style={{
                                 width: "100%",
                                 display: "flex",
-                                justifyContent: "center",
+                                flexDirection: "column",
+                                alignItems: "flex-start",
+                                gap: 20,
                                 padding: "30px 0 35px 0",
                                 borderBottom: "1px solid #edf1f5",
                             }}
                         >
-                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                                {flowSteps.map((step, idx) => {
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, width: "100%" }}>
+                                {topDescriptionText && (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: "var(--font-sm)",
+                                            color: "var(--text-label)",
+                                            textAlign: "left",
+                                        }}
+                                    >
+                                        {topDescriptionText}
+                                    </p>
+                                )}
+                                {singleSequenceSectionTitle && (
+                                    <div
+                                        style={{
+                                            fontSize: "var(--font-lg)",
+                                            fontWeight: 700,
+                                            color: "var(--table-header-text)",
+                                            textAlign: "left",
+                                        }}
+                                    >
+                                        {singleSequenceSectionTitle}
+                                    </div>
+                                )}
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-start" }}>
+                                    {flowSteps.map((step, idx) => {
                                     const isActive = step.id === activeStepId;
                                     const isDone = step.done;
                                     const isLoading =
@@ -1321,95 +1770,224 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                         (step.id === "detect" && isDetecting) ||
                                         (step.id === "explain" && isExplaining);
                                     const isDisabled = step.disabled || isLoading;
-                                    return (
-                                        <React.Fragment key={step.id}>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    if (step.id === "select") {
-                                                        openSelectControl();
-                                                        return;
-                                                    }
-                                                    if (step.id === "decompose") {
-                                                        runDecompose();
-                                                        return;
-                                                    }
-                                                    if (step.id === "detect") {
-                                                        runDetect();
-                                                        return;
-                                                    }
-                                                    runExplain();
-                                                }}
-                                                disabled={isDisabled}
+                                        return (
+                                            <React.Fragment key={step.id}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (step.id === "select") {
+                                                            openSelectControl();
+                                                            return;
+                                                        }
+                                                        if (step.id === "decompose") {
+                                                            runDecompose();
+                                                            return;
+                                                        }
+                                                        if (step.id === "detect") {
+                                                            runDetect();
+                                                            return;
+                                                        }
+                                                        runExplain();
+                                                    }}
+                                                    disabled={isDisabled}
                                                 style={{
                                                     height: 30,
                                                     padding: "0 12px",
                                                     borderRadius: 999,
-                                                    border: isDone ? "1px solid #86efac" : isActive ? "1px solid #fdba74" : "1px solid #d6d6d6",
-                                                    background: isDone ? "#f0fdf4" : isActive ? "#fff7ed" : "#fff",
-                                                    color: isDone ? "#166534" : isActive ? "#9a3412" : "#475569",
+                                                    border: isDone ? "1px solid #bae6fd" : isActive ? "1px solid #fdba74" : "1px solid #d6d6d6",
+                                                    background: isDone ? "#f0f9ff" : isActive ? "#fff7ed" : "#fff",
+                                                    color: isDone ? "#0369a1" : isActive ? "#9a3412" : "#475569",
                                                     fontSize: "var(--font-sm)",
                                                     fontWeight: 400,
                                                     cursor: isDisabled ? "not-allowed" : "pointer",
-                                                    opacity: isDisabled ? 0.55 : 1,
+                                                        opacity: isDisabled ? 0.55 : 1,
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: 6,
+                                                        whiteSpace: "nowrap",
+                                                    }}
+                                                >
+                                                    {isLoading ? (
+                                                        <>
+                                                            <Loader2 size={13} className="animate-spin" />
+                                                            {step.id === "decompose"
+                                                                ? "Decomposing..."
+                                                                : step.id === "detect"
+                                                                    ? "Detecting..."
+                                                                    : "Explaining..."}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {isDone ? "✓" : ""}
+                                                            {(step.id === "detect" || step.id === "explain") && <Sparkles size={12} />}
+                                                            {step.label}
+                                                        </>
+                                                    )}
+                                                </button>
+                                                {idx < flowSteps.length - 1 && (
+                                                    <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                    {resolvedKnowledgeBaseButtons.map((actionButton) => {
+                                    const isSaved = savedKnowledgeBaseActionIds.includes(actionButton.id);
+                                    return (
+                                        <React.Fragment key={actionButton.id}>
+                                            <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
+                                            <button
+                                                type="button"
+                                                disabled={!canAddToKnowledgeBase || isSavingStatusSequence || isSavingActionSequence || isSavingEntitySequence}
+                                                onClick={() => {
+                                                    if (!canAddToKnowledgeBase) return;
+                                                    if (actionButton.id === "status-seq" && hideDetectAndExplainSteps) {
+                                                        void runStatusSequenceKnowledgeBaseSave();
+                                                        return;
+                                                    }
+                                                    if (actionButton.id === "action-seq" && hideDetectAndExplainSteps) {
+                                                        void runActionSequenceKnowledgeBaseSave();
+                                                        return;
+                                                    }
+                                                    if (actionButton.id === "entity-seq" && hideDetectAndExplainSteps) {
+                                                        void runEntitySequenceKnowledgeBaseSave();
+                                                        return;
+                                                    }
+                                                    if (hideDetectAndExplainSteps) return;
+                                                    if (knowledgeBaseActionsInert) return;
+                                                    setSavedKnowledgeBaseActionIds((prev) =>
+                                                        prev.includes(actionButton.id) ? prev : [...prev, actionButton.id]
+                                                    );
+                                                    showKnowledgeBaseToast(
+                                                        actionButton.toastMessage ?? `${actionButton.label} has been added to knowledge base!`
+                                                    );
+                                                }}
+                                                style={{
+                                                    height: 30,
+                                                    padding: "0 12px",
+                                                    borderRadius: 999,
+                                                    border: isSaved ? "1px solid #bae6fd" : "1px solid #d6d6d6",
+                                                    background: isSaved ? "#f0f9ff" : "#fff",
+                                                    color: isSaved ? "#0369a1" : "#475569",
+                                                    fontSize: "var(--font-sm)",
+                                                    fontWeight: 400,
+                                                    cursor: canAddToKnowledgeBase && !isSavingStatusSequence && !isSavingActionSequence && !isSavingEntitySequence ? "pointer" : "not-allowed",
+                                                    opacity: canAddToKnowledgeBase && !isSavingStatusSequence && !isSavingActionSequence && !isSavingEntitySequence ? 1 : 0.55,
                                                     display: "inline-flex",
                                                     alignItems: "center",
                                                     gap: 6,
                                                     whiteSpace: "nowrap",
                                                 }}
                                             >
-                                                {isLoading ? (
+                                                {actionButton.id === "status-seq" && isSavingStatusSequence ? (
                                                     <>
                                                         <Loader2 size={13} className="animate-spin" />
-                                                        {step.id === "decompose"
-                                                            ? "Decomposing..."
-                                                            : step.id === "detect"
-                                                                ? "Detecting..."
-                                                                : "Explaining..."}
+                                                        Saving status-seq...
+                                                    </>
+                                                ) : actionButton.id === "action-seq" && isSavingActionSequence ? (
+                                                    <>
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                        Saving action-seq...
+                                                    </>
+                                                ) : actionButton.id === "entity-seq" && isSavingEntitySequence ? (
+                                                    <>
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                        Saving entity-seq...
                                                     </>
                                                 ) : (
-                                                    <>
-                                                        {isDone ? "✓" : ""}
-                                                        {(step.id === "detect" || step.id === "explain") && <Sparkles size={12} />}
-                                                        {step.label}
-                                                    </>
+                                                    <>{isSaved ? "✓ " : ""}{actionButton.label}</>
                                                 )}
                                             </button>
-                                            {idx < flowSteps.length - 1 && (
-                                                <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
-                                            )}
                                         </React.Fragment>
                                     );
                                 })}
-                                <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
-                                <button
-                                    type="button"
-                                    disabled={!canAddToKnowledgeBase}
-                                    onClick={() => {
-                                        if (!canAddToKnowledgeBase) return;
-                                        setIsAddedToKnowledgeBase(true);
-                                        showKnowledgeBaseToast("abnormal segment has been added to knowledge base!");
-                                    }}
-                                    style={{
-                                        height: 30,
-                                        padding: "0 12px",
-                                        borderRadius: 999,
-                                        border: isAddedToKnowledgeBase ? "1px solid #86efac" : "1px solid #d6d6d6",
-                                        background: isAddedToKnowledgeBase ? "#f0fdf4" : "#fff",
-                                        color: isAddedToKnowledgeBase ? "#166534" : "#475569",
-                                        fontSize: "var(--font-sm)",
-                                        fontWeight: 400,
-                                        cursor: canAddToKnowledgeBase ? "pointer" : "not-allowed",
-                                        opacity: canAddToKnowledgeBase ? 1 : 0.55,
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    {isAddedToKnowledgeBase ? "✓ " : ""}5 Add to Knowledge Base
-                                </button>
+                                </div>
                             </div>
+                            {showDualSectionHeader && (
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, width: "100%" }}>
+                                    {batchProcessingSectionTitle && (
+                                        <div
+                                            style={{
+                                                fontSize: "var(--font-lg)",
+                                                fontWeight: 700,
+                                                color: "var(--table-header-text)",
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            {batchProcessingSectionTitle}
+                                        </div>
+                                    )}
+                                    {batchProcessingButtonLabel && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    void runBatchProcessAllTrainingSequences();
+                                                }}
+                                                disabled={!canBatchProcessAllTrainingSequences}
+                                                style={{
+                                                    height: 32,
+                                                    padding: "0 14px",
+                                                    borderRadius: 999,
+                                                    border: canBatchProcessAllTrainingSequences ? "1px solid #cbd5e1" : "1px solid #e2e8f0",
+                                                    background: canBatchProcessAllTrainingSequences ? "#fff" : "#f8fafc",
+                                                    color: canBatchProcessAllTrainingSequences ? "#334155" : "#94a3b8",
+                                                    fontSize: "var(--font-sm)",
+                                                    fontWeight: 400,
+                                                    cursor: canBatchProcessAllTrainingSequences ? "pointer" : "not-allowed",
+                                                    opacity: canBatchProcessAllTrainingSequences ? 1 : 0.7,
+                                                    whiteSpace: "nowrap",
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    gap: 6,
+                                                }}
+                                            >
+                                                {isBatchProcessingAllSequences ? (
+                                                    <>
+                                                        <Loader2 size={13} className="animate-spin" />
+                                                        Processing...
+                                                    </>
+                                                ) : (
+                                                    batchProcessingButtonLabel
+                                                )}
+                                            </button>
+                                            {isBatchProcessingAllSequences && (
+                                                <div
+                                                    style={{
+                                                        width: "min(520px, 100%)",
+                                                        display: "flex",
+                                                        flexDirection: "column",
+                                                        gap: 8,
+                                                        paddingTop: 2,
+                                                    }}
+                                                >
+                                                    <div style={{ color: "#475569", fontSize: "var(--font-sm)" }}>
+                                                        {batchProcessingStepLabel}
+                                                    </div>
+                                                    <div
+                                                        style={{
+                                                            width: "100%",
+                                                            height: 10,
+                                                            borderRadius: 999,
+                                                            background: "#e2e8f0",
+                                                            overflow: "hidden",
+                                                        }}
+                                                    >
+                                                        <div
+                                                            style={{
+                                                                width: `${batchProcessingProgress}%`,
+                                                                height: "100%",
+                                                                borderRadius: 999,
+                                                                background: "linear-gradient(90deg, #22c55e 0%, #16a34a 100%)",
+                                                                transition: "width 240ms ease",
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {showSelectControl && (
@@ -1462,11 +2040,11 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                                 fontSize: "var(--font-sm)",
                                             }}
                                         >
-                                            ✅ Normal: {normalSequenceCount}
+                                            ✅ Normal: {resolvedTotalSequenceCount}
                                         </span>
-                                    </div>
-                                    <div style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>
-                                        Total: {kroneDecompData.length}
+                                        <span style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>
+                                            Total: {resolvedTotalSequenceCount}
+                                        </span>
                                     </div>
                                 </div>
                                 <label
@@ -1478,51 +2056,58 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                         margin: 0,
                                     }}
                                 >
-                                    <span style={controlLabelStyle}>Select a test sequence:</span>
-                                    <select
-                                        ref={sequenceSelectRef}
-                                        value={selectedSeqId ?? ""}
-                                        onChange={e => {
-                                            if (!e.target.value) {
+                                    <span style={controlLabelStyle}>{selectControlLabel}</span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                        <select
+                                            ref={sequenceSelectRef}
+                                            value={selectedSeqId ?? ""}
+                                            onChange={e => {
+                                                if (!e.target.value) {
+                                                    setHoveredNode?.(null);
+                                                    setSavedKnowledgeBaseActionIds([]);
+                                                    setShowDecomposed(false);
+                                                    setShowDetected(false);
+                                                    resetDecomposingState();
+                                                    resetDetectingState();
+                                                    resetExplanationState();
+                                                    setSelectedIndex(null);
+                                                    return;
+                                                }
                                                 setHoveredNode?.(null);
-                                                setIsAddedToKnowledgeBase(false);
+                                                setSavedKnowledgeBaseActionIds([]);
                                                 setShowDecomposed(false);
                                                 setShowDetected(false);
                                                 resetDecomposingState();
                                                 resetDetectingState();
                                                 resetExplanationState();
-                                                setSelectedIndex(null);
-                                                return;
-                                            }
-                                            setHoveredNode?.(null);
-                                            setIsAddedToKnowledgeBase(false);
-                                            setShowDecomposed(false);
-                                            setShowDetected(false);
-                                            resetDecomposingState();
-                                            resetDetectingState();
-                                            resetExplanationState();
-                                            const idx = kroneDecompData.findIndex(row => row.seq_id === e.target.value);
-                                            if (idx !== -1) setSelectedIndex(idx);
-                                        }}
-                                        style={{
-                                            minWidth: 120,
-                                            height: 30,
-                                            border: "1px solid #ccc",
-                                            color: "var(--text-value)",
-                                            fontSize: "var(--font-sm)",
-                                            textAlign: "left",
-                                        }}
-                                    >
-                                        <option value=""></option>
-                                        {sortedSequenceRows.map((row: KroneDecompRow) => (
-                                            <option key={row.seq_id} value={row.seq_id}
-                                                style={{ color: abnormalSeqIdSet.has(row.seq_id) ? "#F00" : "#000" }}
-                                            >
-                                                {abnormalSeqIdSet.has(row.seq_id) ? "🚨 Abnormal | " : "✅ Normal | "}
-                                                {row.seq_id}
-                                            </option>
-                                        ))}
-                                    </select>
+                                                const idx = kroneDecompData.findIndex(row => row.seq_id === e.target.value);
+                                                if (idx !== -1) setSelectedIndex(idx);
+                                            }}
+                                            style={{
+                                                minWidth: 120,
+                                                height: 30,
+                                                border: "1px solid #ccc",
+                                                color: "var(--text-value)",
+                                                fontSize: "var(--font-sm)",
+                                                textAlign: "left",
+                                            }}
+                                        >
+                                            <option value=""></option>
+                                            {sortedSequenceRows.map((row: KroneDecompRow) => (
+                                                <option key={row.seq_id} value={row.seq_id}
+                                                    style={{ color: abnormalSeqIdSet.has(row.seq_id) ? "#F00" : "#000" }}
+                                                >
+                                                    {abnormalSeqIdSet.has(row.seq_id) ? "🚨 Abnormal | " : "✅ Normal | "}
+                                                    {row.seq_id}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {resolvedVisibleSequenceCount < resolvedTotalSequenceCount && (
+                                            <span style={{ color: "#64748b", fontSize: "var(--font-sm)" }}>
+                                                Showing first {resolvedVisibleSequenceCount} only
+                                            </span>
+                                        )}
+                                    </div>
                                 </label>
                             </div>
                         )}
@@ -1622,9 +2207,11 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                 paddingBottom: 6,
                                 borderTop: hasIntermediateSection ? "1px solid #edf1f5" : "none",
                                 position: "relative",
-                                height: 34,
+                                height: 40,
                                 width: "100%",
                                 minWidth: Math.max(columnHeaderPos.contentWidth, 420),
+                                background: "var(--table-header-bg)",
+                                borderBottom: "1px solid var(--table-header-border)",
                             }}
                         >
                                     <span
@@ -1633,7 +2220,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             left: columnHeaderPos.entityX,
                                             fontSize: "var(--font-sm)",
                                             fontWeight: 700,
-                                            color: ENTITY_BORDER,
+                                            color: "var(--table-header-text)",
                                             pointerEvents: "none",
                                             display: showDecomposed ? "inline" : "none",
                                 }}
@@ -1646,7 +2233,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             left: columnHeaderPos.actionX,
                                             fontSize: "var(--font-sm)",
                                             fontWeight: 700,
-                                            color: ACTION_BORDER,
+                                            color: "var(--table-header-text)",
                                             pointerEvents: "none",
                                             display: showDecomposed ? "inline" : "none",
                                 }}
@@ -1659,7 +2246,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             left: columnHeaderPos.statusX,
                                             fontSize: "var(--font-sm)",
                                             fontWeight: 700,
-                                            color: STATUS_BORDER,
+                                            color: "var(--table-header-text)",
                                             pointerEvents: "none",
                                             display: showDecomposed ? "inline" : "none",
                                 }}
@@ -1673,7 +2260,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             transform: "translateX(-50%)",
                                             fontSize: "var(--font-sm)",
                                             fontWeight: 700,
-                                            color: "#000",
+                                            color: "var(--table-header-text)",
                                             pointerEvents: "none",
                                             whiteSpace: "nowrap",
                                 }}
@@ -1687,7 +2274,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             transform: "translateX(-50%)",
                                             fontSize: "var(--font-sm)",
                                             fontWeight: 700,
-                                            color: "#000",
+                                            color: "var(--table-header-text)",
                                             pointerEvents: "none",
                                             whiteSpace: "nowrap",
                                 }}
@@ -1700,7 +2287,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             left: columnHeaderPos.logTemplateX,
                                             fontSize: "var(--font-sm)",
                                             fontWeight: 700,
-                                            color: "#000",
+                                            color: "var(--table-header-text)",
                                             pointerEvents: "none",
                                             whiteSpace: "nowrap",
                                 }}
@@ -1749,13 +2336,13 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                             justifyContent: "space-between",
                             gap: 10,
                             padding: "10px 12px",
-                            borderBottom: "1px solid #edf1f5",
-                            background: "#f8fafc",
+                            borderBottom: "1px solid var(--table-header-border)",
+                            background: "var(--table-header-bg)",
                             cursor: "move",
                             userSelect: "none",
                         }}
                     >
-                        <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "#0f172a" }}>
+                        <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
                             Anomaly Explanation (LLM)
                         </span>
                         <button
@@ -1789,7 +2376,52 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                             overflowY: "auto",
                         }}
                     >
-                        {anomalyExplanationText}
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "140px minmax(0, 1fr)",
+                                columnGap: 10,
+                                alignItems: "start",
+                                marginBottom: 10,
+                                paddingBottom: 10,
+                                borderBottom: "1px solid #edf1f5",
+                            }}
+                        >
+                            <span style={{ color: "var(--text-label)", fontWeight: 600 }}>Log Key Segment</span>
+                            <span>{anomalySegmentLinkText}</span>
+                        </div>
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "140px minmax(0, 1fr)",
+                                columnGap: 10,
+                                alignItems: "start",
+                                marginBottom: 10,
+                                paddingBottom: 10,
+                                borderBottom: "1px solid #edf1f5",
+                            }}
+                        >
+                            <span style={{ color: "var(--text-label)", fontWeight: 600 }}>Level</span>
+                            <span>{anomalyLevelText}</span>
+                        </div>
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "140px minmax(0, 1fr)",
+                                columnGap: 10,
+                                alignItems: "start",
+                                marginBottom: 12,
+                                paddingBottom: 10,
+                                borderBottom: "1px solid #edf1f5",
+                            }}
+                        >
+                            <span style={{ color: "var(--text-label)", fontWeight: 600 }}>Parent Node</span>
+                            <span>{anomalyParentNodeText}</span>
+                        </div>
+                        <div style={{ color: "var(--text-label)", fontWeight: 600, marginBottom: 8 }}>
+                            LLM (ChatGPT-3.5) Explanation
+                        </div>
+                        <div>{anomalyExplanationText}</div>
                     </div>
                     <div
                         style={{
@@ -1803,7 +2435,10 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         <button
                             type="button"
                             onClick={() => {
-                                setIsAddedToKnowledgeBase(true);
+                                if (knowledgeBaseActionsInert) return;
+                                setSavedKnowledgeBaseActionIds((prev) =>
+                                    prev.includes("default") ? prev : [...prev, "default"]
+                                );
                                 showKnowledgeBaseToast("abnormal segment has been added to knowledge base!");
                             }}
                             style={{
@@ -1818,7 +2453,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                 cursor: "pointer",
                             }}
                         >
-                            Save to knowledge base
+                            {resolvedKnowledgeBaseButtons[0]?.label.replace(/^\d+\s*/, "") ?? "Save to knowledge base"}
                         </button>
                     </div>
                     <div
@@ -1833,6 +2468,122 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                             cursor: "ew-resize",
                         }}
                     />
+                </div>
+            )}
+            {kbDialogMessage && (
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Knowledge base save result"
+                    style={{
+                        position: "fixed",
+                        inset: 0,
+                        zIndex: 1400,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "rgba(15, 23, 42, 0.32)",
+                        padding: 24,
+                    }}
+                >
+                    <div
+                        style={{
+                            width: "min(560px, calc(100vw - 48px))",
+                            background: "#fff",
+                            border: "1px solid #dbe3ec",
+                            borderRadius: 14,
+                            boxShadow: "0 20px 48px rgba(15,23,42,0.22)",
+                            overflow: "hidden",
+                        }}
+                    >
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                padding: "14px 18px",
+                                borderBottom: "1px solid var(--table-header-border)",
+                                background: "var(--table-header-bg)",
+                            }}
+                        >
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span
+                                    aria-hidden="true"
+                                    style={{
+                                        display: "inline-flex",
+                                        width: 24,
+                                        height: 24,
+                                        borderRadius: 999,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        background: "#16a34a",
+                                        color: "#fff",
+                                        fontSize: 14,
+                                        fontWeight: 700,
+                                        flex: "0 0 auto",
+                                    }}
+                                >
+                                    ✓
+                                </span>
+                                <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
+                                    Added to Knowledge Base
+                                </span>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={dismissKnowledgeBaseDialog}
+                                aria-label="Close result dialog"
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#64748b",
+                                    fontSize: 20,
+                                    lineHeight: 1,
+                                    cursor: "pointer",
+                                    padding: 0,
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div
+                            style={{
+                                padding: "22px 20px 18px 20px",
+                                color: "var(--text-value)",
+                                fontSize: "var(--font-md)",
+                                lineHeight: 1.55,
+                                textAlign: "left",
+                            }}
+                        >
+                            {kbDialogMessage}
+                        </div>
+                        <div
+                            style={{
+                                display: "flex",
+                                justifyContent: "flex-end",
+                                padding: "0 20px 18px 20px",
+                            }}
+                        >
+                            <button
+                                type="button"
+                                onClick={dismissKnowledgeBaseDialog}
+                                style={{
+                                    height: 34,
+                                    padding: "0 14px",
+                                    borderRadius: 8,
+                                    border: "1px solid #86efac",
+                                    background: "#f0fdf4",
+                                    color: "#166534",
+                                    fontSize: "var(--font-sm)",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                }}
+                            >
+                                OK
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
             {kbToastMessage && (

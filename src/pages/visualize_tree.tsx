@@ -1,34 +1,17 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { csv } from "d3-fetch";
-import { hierarchy } from "d3-hierarchy";
-import type { HierarchyNode } from "d3-hierarchy";
 import { buildTree } from "../tree_utils";
-import { 
-  findStatusNode,
-  findNodeId, 
-} from "../components/viz_tree_components/viz_tree_utils";
 import type { TreeNode } from "../tree_utils";
-import { TreeControls } from "@/components/viz_tree_components/control_panel/viz_tree_controls";
 import { VizTree } from "@/components/viz_tree_components/viz_tree/viz_tree";
-import { TreeInfoPanel } from "@/components/viz_tree_components/info_panel/tree_info_panel";
 import { Footer } from "@/components/footer";
 import { Loader2, Sparkles } from "lucide-react";
 import { withBase } from "@/lib/base-url";
 
 export const VisualizeTree: React.FC = () => {
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
-  const [collapseEntities, setCollapseEntities] = useState(false);
-  const [collapseActions, setCollapseActions] = useState(false);
-  const [collapseStatuses, setCollapseStatuses] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchValue, setSearchValue] = useState("");
-  const [matchedNodeId, setMatchedNodeId] = useState<string | null>(null);
-  const [hoveredNode, setHoveredNode] = useState<HierarchyNode<TreeNode> | null>(null);
-  const [matchedNodeObj, setMatchedNodeObj] = useState<HierarchyNode<TreeNode> | null>(null);
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [selectedAction, setSelectedAction] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [searchMode, setSearchMode] = useState<"logKey" | "sequence" | null>(null);
+  const [showTemplateSelectControl, setShowTemplateSelectControl] = useState(false);
+  const [selectedTemplateSource, setSelectedTemplateSource] = useState("");
+  const [isTemplatesLoaded, setIsTemplatesLoaded] = useState(false);
   const [isHierarchyExtracted, setIsHierarchyExtracted] = useState(false);
   const [isExtractingHierarchy, setIsExtractingHierarchy] = useState(false);
   const extractTimerRef = useRef<number | null>(null);
@@ -36,84 +19,6 @@ export const VisualizeTree: React.FC = () => {
   useEffect(() => {
     csv(withBase("Krone_Tree.csv")).then(rows => setTreeData(buildTree(rows)));
   }, []);
-
-  useEffect(() => {
-    if (searchMode !== "logKey") return;
-    if (!treeData || !searchValue) {
-      setMatchedNodeId(null);
-      return;
-    }
-    setMatchedNodeId(findStatusNode(treeData, searchValue));
-  }, [searchValue, treeData, searchMode]);
-
-  useEffect(() => {
-    if (!treeData || !matchedNodeId) {
-      setMatchedNodeObj(null);
-      return;
-    }
-    const root = hierarchy(treeData, d => d.children || d._children);
-    let found: HierarchyNode<TreeNode> | null = null;
-    root.each(node => {
-      if (
-        (node.depth === 3 && node.data.event_id === matchedNodeId) ||
-        ((node.depth === 1 || node.depth === 2) && node.data.name === matchedNodeId)
-      ) {
-        found = node;
-      }
-    });
-    setMatchedNodeObj(found);
-  }, [treeData, matchedNodeId]);
-
-  function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setSelectedEntity(null);
-    setSelectedAction(null);
-    setSelectedStatus(null);
-    setSearchValue(searchInput.trim());
-    setSearchMode("logKey");
-    if (!searchInput.trim()) setHoveredNode(null);
-  }
-
-  function handleClearSearch() {
-    setSearchInput("");
-    setSearchValue("");
-    setMatchedNodeId(null);
-    setMatchedNodeObj(null);
-    setSelectedEntity(null);
-    setSelectedAction(null);
-    setSelectedStatus(null);
-    setSearchMode(null);
-  }
-
-  function handlePathSearch(entity: string, action: string, status: string) {
-    setSearchMode("sequence");
-    setSearchInput("");
-    setSearchValue("");
-    if (!treeData) return;
-
-    let foundId: string | null = null;
-    if (entity && !action && !status) foundId = entity;
-    else if (entity && action && !status) foundId = action;
-    else if (entity && !action && status) foundId = findNodeId(treeData, entity, undefined, status);
-    else if (entity && action && status) foundId = findNodeId(treeData, entity, action, status);
-    else if (!entity && action && !status) foundId = action;
-    else if (!entity && !action && status) foundId = findNodeId(treeData, undefined, undefined, status);
-    else if (!entity && action && status) foundId = findNodeId(treeData, undefined, action, status);
-
-    setSearchValue(foundId ?? "");
-    setMatchedNodeId(foundId);
-    if (!foundId) setMatchedNodeObj(null);
-  }
-
-  const staticRootNode = useMemo(() => {
-    if (!treeData) return null;
-    return {
-      data: treeData,
-      depth: 0,
-      parent: null,
-      children: (treeData.children || []).map(child => ({ data: child })),
-    } as unknown as HierarchyNode<TreeNode>;
-  }, [treeData]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -125,13 +30,50 @@ export const VisualizeTree: React.FC = () => {
     };
   }, []);
 
-  function handleLogKeySearch(logKey: string) {
-    setSearchInput(logKey);
-    setSearchValue(logKey);
-    setSearchMode("logKey");
-  }
+  const templateRows = useMemo(() => {
+    const rows: Array<{ templateId: string; template: string }> = [];
 
-  const statusSteps = ["Hierarchy extraction (HDFS dataset)"];
+    const walk = (node: TreeNode | null) => {
+      if (!node) return;
+      if (node.event_id || node.log_template) {
+        rows.push({
+          templateId: node.event_id || "-",
+          template: node.log_template || "-",
+        });
+      }
+      node.children?.forEach(walk);
+    };
+
+    walk(treeData);
+    return rows;
+  }, [treeData]);
+
+  const treeStats = useMemo(() => {
+    let entityCount = 0;
+    let actionCount = 0;
+    let statusCount = 0;
+
+    if (treeData?.children) {
+      entityCount = treeData.children.length;
+      treeData.children.forEach((entityNode) => {
+        const actions = entityNode.children || [];
+        actionCount += actions.length;
+        actions.forEach((actionNode) => {
+          statusCount += actionNode.children?.length || 0;
+        });
+      });
+    }
+
+    return {
+      entityCount,
+      actionCount,
+      statusCount,
+    };
+  }, [treeData]);
+
+  const canExtractHierarchy = isTemplatesLoaded && !isExtractingHierarchy;
+
+  const showTreeView = isHierarchyExtracted;
 
   return (
     <>
@@ -168,161 +110,282 @@ export const VisualizeTree: React.FC = () => {
               }}
             >
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                {statusSteps.map((step, idx) => {
-                  const isActive = isExtractingHierarchy;
-                  const isDone = isHierarchyExtracted;
-                  return (
-                    <React.Fragment key={step}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (extractTimerRef.current !== null) {
-                            window.clearTimeout(extractTimerRef.current);
-                            extractTimerRef.current = null;
-                          }
-                          setIsHierarchyExtracted(false);
-                          setIsExtractingHierarchy(true);
-                          extractTimerRef.current = window.setTimeout(() => {
-                            setIsExtractingHierarchy(false);
-                            setIsHierarchyExtracted(true);
-                            extractTimerRef.current = null;
-                          }, 2500);
-                        }}
-                        style={{
-                          height: 30,
-                          padding: "0 12px",
-                          borderRadius: 999,
-                          border: isDone ? "1px solid #86efac" : isActive ? "1px solid #fdba74" : "1px solid #d6d6d6",
-                          background: isDone ? "#f0fdf4" : isActive ? "#fff7ed" : "#fff",
-                          color: isDone ? "#166534" : isActive ? "#9a3412" : "#475569",
-                          fontSize: "var(--font-sm)",
-                          fontWeight: 400,
-                          opacity: 1,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          whiteSpace: "nowrap",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {isDone ? "✓" : ""}
-                        <Sparkles size={12} />
-                        {step}
-                      </button>
-                      {idx < statusSteps.length - 1 && (
-                        <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                <button
+                  type="button"
+                  onClick={() => setShowTemplateSelectControl(true)}
+                  style={{
+                    height: 30,
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    border: isTemplatesLoaded ? "1px solid #bae6fd" : showTemplateSelectControl ? "1px solid #fdba74" : "1px solid #d6d6d6",
+                    background: isTemplatesLoaded ? "#f0f9ff" : showTemplateSelectControl ? "#fff7ed" : "#fff",
+                    color: isTemplatesLoaded ? "#0369a1" : showTemplateSelectControl ? "#9a3412" : "#475569",
+                    fontSize: "var(--font-sm)",
+                    fontWeight: 400,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                >
+                  {isTemplatesLoaded ? "✓" : ""}
+                  1 Select log templates
+                </button>
+                <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
+                <button
+                  type="button"
+                  disabled={!canExtractHierarchy}
+                  onClick={() => {
+                    if (!canExtractHierarchy) return;
+                    if (extractTimerRef.current !== null) {
+                      window.clearTimeout(extractTimerRef.current);
+                      extractTimerRef.current = null;
+                    }
+                    setIsHierarchyExtracted(false);
+                    setIsExtractingHierarchy(true);
+                    extractTimerRef.current = window.setTimeout(() => {
+                      setIsExtractingHierarchy(false);
+                      setIsHierarchyExtracted(true);
+                      extractTimerRef.current = null;
+                    }, 2500);
+                  }}
+                  style={{
+                    height: 30,
+                    padding: "0 12px",
+                    borderRadius: 999,
+                    border: isHierarchyExtracted ? "1px solid #bae6fd" : isExtractingHierarchy ? "1px solid #fdba74" : "1px solid #d6d6d6",
+                    background: isHierarchyExtracted ? "#f0f9ff" : isExtractingHierarchy ? "#fff7ed" : "#fff",
+                    color: isHierarchyExtracted ? "#0369a1" : isExtractingHierarchy ? "#9a3412" : "#475569",
+                    fontSize: "var(--font-sm)",
+                    fontWeight: 400,
+                    opacity: canExtractHierarchy || isHierarchyExtracted ? 1 : 0.55,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    whiteSpace: "nowrap",
+                    cursor: canExtractHierarchy ? "pointer" : "not-allowed",
+                  }}
+                >
+                  {isHierarchyExtracted ? "✓" : ""}
+                  <Sparkles size={12} />
+                  2 Hierarchy extraction (HDFS dataset)
+                </button>
               </div>
             </div>
+            {showTemplateSelectControl && (
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                  padding: "10px 0 0 0",
+                }}
+              >
+                <span style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>Select log templates:</span>
+                <select
+                  value={selectedTemplateSource}
+                  onChange={(e) => setSelectedTemplateSource(e.target.value)}
+                  style={{
+                    minWidth: 180,
+                    height: 30,
+                    border: "1px solid #ccc",
+                    color: "var(--text-value)",
+                    fontSize: "var(--font-sm)",
+                    textAlign: "left",
+                  }}
+                >
+                  <option value=""></option>
+                  <option value="hdfs">HDFS log templates</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={!selectedTemplateSource}
+                  onClick={() => {
+                    if (!selectedTemplateSource) return;
+                    setIsTemplatesLoaded(true);
+                    setIsHierarchyExtracted(false);
+                  }}
+                  style={{
+                    height: 30,
+                    padding: "0 12px",
+                    borderRadius: 8,
+                    border: "1px solid #d6d6d6",
+                    background: "#fff",
+                    color: "#334155",
+                    fontSize: "var(--font-sm)",
+                    fontWeight: 400,
+                    cursor: selectedTemplateSource ? "pointer" : "not-allowed",
+                    opacity: selectedTemplateSource ? 1 : 0.55,
+                  }}
+                >
+                  Load
+                </button>
+              </div>
+            )}
           </div>
         </div>
-        {isExtractingHierarchy ? (
+        <div style={{ flex: "1 1 auto", position: "relative", overflow: "hidden" }}>
+        {showTreeView ? (
           <div
             style={{
-              flex: "1 1 auto",
+              display: "flex",
+              alignItems: "flex-start",
+              padding: "20px",
+              boxSizing: "border-box",
+              overflow: "hidden",
+              columnGap: 16,
+              height: "100%",
+            }}
+          >
+            <div style={{ flex: "1 1 auto", minWidth: 0, height: "100%", overflow: "auto", display: "flex", flexDirection: "column" }}>
+              <div
+                style={{
+                  marginBottom: 20,
+                  fontSize: "var(--font-md)",
+                  color: "#334155",
+                  display: "flex",
+                  gap: 24,
+                  flexWrap: "wrap",
+                }}
+              >
+                <span><strong>Entity:</strong> {treeStats.entityCount}</span>
+                <span><strong>Action:</strong> {treeStats.actionCount}</span>
+                <span><strong>Status:</strong> {treeStats.statusCount}</span>
+              </div>
+              <div className="text-center " style={{ paddingTop: "0.5rem", paddingBottom: "2rem" }} >
+                <h1 className="font-WPIfont text-black text-2xl font-bold">Hierarchy Tree</h1>
+              </div>
+              {treeData && (
+                <VizTree
+                  treeData={treeData}
+                  collapseEntities={false}
+                  collapseActions={false}
+                  collapseStatuses={false}
+                  matchedNodeId={null}
+                  showAnomalySymbols={false}
+                  disableHoverHighlight={false}
+                  showStickyLevelHeaders={true}
+                  compactVerticalSpacing={true}
+                  extraColumnSpacing={[0, 10, 14, 14]}
+                  showBadges={false}
+                />
+              )}
+            </div>
+          </div>
+        ) : isTemplatesLoaded ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              padding: "20px",
+              boxSizing: "border-box",
+              overflow: "hidden",
+            }}
+          >
+            <div className="text-center" style={{ paddingTop: "0.5rem", paddingBottom: "2rem", flex: "0 0 auto" }}>
+              <h1 className="font-WPIfont text-black text-2xl font-bold">Templates</h1>
+            </div>
+            <div
+              style={{
+                flex: "1 1 auto",
+                overflow: "auto",
+                border: "1px solid #edf1f5",
+                borderRadius: 12,
+                background: "#fff",
+              }}
+            >
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "220px minmax(480px, 1fr)",
+                  gap: 0,
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  background: "var(--table-header-bg)",
+                  borderBottom: "1px solid var(--table-header-border)",
+                }}
+              >
+                <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
+                  Template ID
+                </div>
+                <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)", textAlign: "left" }}>
+                  Templates
+                </div>
+              </div>
+              {templateRows.map((row, index) => (
+                <div
+                  key={`${row.templateId}-${index}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "220px minmax(480px, 1fr)",
+                    gap: 0,
+                    borderBottom: "1px solid var(--table-cell-border)",
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "var(--table-cell-py) var(--table-cell-px)",
+                      fontSize: "var(--font-sm)",
+                      color: "var(--table-cell-muted-text)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {row.templateId}
+                  </div>
+                  <div
+                    style={{
+                      padding: "var(--table-cell-py) var(--table-cell-px)",
+                      fontSize: "var(--font-sm)",
+                      color: "var(--table-cell-text)",
+                      minWidth: 0,
+                      textAlign: "left",
+                    }}
+                  >
+                    {row.template}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "100%",
+              color: "#64748b",
+              fontSize: "var(--font-md)",
+            }}
+          >
+            Select log templates and click Load to view templates.
+          </div>
+        )}
+        {isExtractingHierarchy && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 10,
               color: "#1f3f8f",
               fontSize: "var(--font-md)",
+              background: "rgba(255,255,255,0.72)",
+              backdropFilter: "blur(1px)",
             }}
           >
             <Loader2 size={18} className="animate-spin" />
             LLM is thinking...
           </div>
-        ) : isHierarchyExtracted ? (
-          <div style={{ flex: "1 1 auto", display: "flex", alignItems: "flex-start", padding: "20px", boxSizing: "border-box", overflow: "hidden", columnGap: 16 }}>
-          <div style={{ flex: "0 0 23%", width: "23%", minWidth: 180, maxWidth: "27%", height: "100%", overflowY: "auto", paddingBottom: 200 }}>
-            <div style={{ marginBottom: 16 }}>
-              <TreeInfoPanel
-                node={staticRootNode}
-                title="Tree statistics"
-                panelTitleFontSize="var(--font-lg)"
-                panelTitleFontWeight={700}
-                hideNodeName={true}
-                sortLogKeys={true}
-                showLogKeyGroups={false}
-                onLogKeySearch={handleLogKeySearch}
-              />
-            </div>
-            <TreeControls
-              collapse={{
-                entities: collapseEntities,
-                actions: collapseActions,
-                statuses: collapseStatuses,
-                setEntities: setCollapseEntities,
-                setActions: setCollapseActions,
-                setStatuses: setCollapseStatuses,
-              }}
-              search={{
-                input: searchInput,
-                setInput: setSearchInput,
-                value: searchValue,
-                matchedNodeId,
-                handleSubmit: handleSearchSubmit,
-                handleClear: handleClearSearch,
-              }}
-              selection={{
-                entity: selectedEntity,
-                setEntity: setSelectedEntity,
-                action: selectedAction,
-                setAction: setSelectedAction,
-                status: selectedStatus,
-                setStatus: setSelectedStatus,
-                onPathSearch: handlePathSearch,
-              }}
-              treeData={treeData}
-            />
-          </div>
-          <div style={{ flex: "0 0 45%", width: "45%", minWidth: 0, height: "100%", overflow: "auto", display: "flex", flexDirection: "column" }}>
-            <div className="text-center " style={{ paddingTop: "0.5rem", paddingBottom: "2rem" }} >
-              <h1 className="font-WPIfont text-black text-2xl font-bold">Hierarchy Tree</h1>
-            </div>
-            {treeData && (
-              <VizTree
-                treeData={treeData}
-                collapseEntities={collapseEntities}
-                collapseActions={collapseActions}
-                collapseStatuses={collapseStatuses}
-                matchedNodeId={matchedNodeId}
-                setHoveredNode={setHoveredNode}
-                showAnomalySymbols={false}
-                disableHoverHighlight={!!matchedNodeId}
-                showStickyLevelHeaders={true}
-                compactVerticalSpacing={true}
-                extraColumnSpacing={[0, 10, 14, 14]}
-              />
-            )}
-          </div>
-          <div style={{ flex: "0 0 28%", width: "28%", minWidth: 200, maxWidth: "32%", height: "100%", overflowY: "auto" }}>
-            <TreeInfoPanel
-              node={searchValue && matchedNodeObj ? matchedNodeObj : hoveredNode}
-              tableLayout={true}
-              showLogKeyGroups={false}
-              onLogKeySearch={handleLogKeySearch}
-            />
-          </div>
-          </div>
-        ) : (
-          <div
-            style={{
-              flex: "1 1 auto",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 16,
-              color: "#6b7280",
-              fontSize: "var(--font-md)",
-            }}
-          >
-            Click "Hierarchy extraction" to start.
-          </div>
         )}
+        </div>
         <div style={{ flex: "0 0 auto" }}>
           <Footer />
         </div>

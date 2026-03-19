@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import type { HierarchyNode } from "d3-hierarchy";
 import type { TreeNode } from "../../../tree_utils";
-import { collectStats } from "../viz_tree_utils";
+import { collectStats, getLogKeySubsequence } from "../viz_tree_utils";
 
 import {
   NodeTitle,
@@ -102,11 +102,12 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
                   style={{
                     display: "inline-block",
                     padding: "2px 8px",
-                    border: row.highlighted ? "1px solid #60a5fa" : "1px solid #d0d0d0",
+                    border: row.highlighted ? "1px solid var(--highlight-border)" : "1px solid #d0d0d0",
                     borderRadius: 6,
-                    background: row.highlighted ? "#dbeafe" : "#f7f7f7",
+                    background: row.highlighted ? "var(--highlight-fill)" : "#f7f7f7",
                     color: "var(--text-value)",
                     fontWeight: 400,
+                    boxShadow: row.highlighted ? "0 0 0 1px var(--highlight-ring)" : undefined,
                   }}
                 >
                   {row.value}
@@ -225,6 +226,7 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
       ];
     } else {
       const logTemplate = node.depth === 3 ? (node.data.log_template || "-") : "-";
+      const logKeySequence = `[${getLogKeySubsequence(node).join(", ")}]`;
       const hasAnyLogKey = node.depth === 3
         ? !!node.data.event_id
         : (normalLogKeys.length + abnormalLogKeys.length) > 0;
@@ -245,6 +247,7 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
       ];
 
       const logKeyDetailRows: TableRow[] = [
+        { label: "Log Key Sequence", value: logKeySequence },
         { label: "Log Template", value: logTemplate },
         { label: "Log Key Prediction", value: predictionLabel, color: predictionColor },
         // { label: "Anomaly Type", value: anomalyType, color: anomalyType === "-" ? undefined : "#f44336" },

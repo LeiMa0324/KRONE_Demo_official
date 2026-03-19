@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { hierarchy, tree as d3Tree } from "d3-hierarchy";
+import { select } from "d3-selection";
 import type { TreeNode } from "../../../tree_utils";
 import {
   addIndexPath,
@@ -7,6 +8,7 @@ import {
   BASE_FONT,
   getCssVar,
   getWidestByDepth,
+  getFontSize,
   ENTITY_BORDER,
   ACTION_BORDER,
   STATUS_BORDER,
@@ -30,6 +32,14 @@ const SVG_PADDING = 200;
 const COLLAPSED_WIDTH_PADDING = 20;
 const MIN_ROOT_WIDTH = 400;
 const DIV_STYLE = { flex: 1, width: "100%", height: "100%", overflow: "auto" };
+const TEMPLATE_ID_COLUMN_GAP = 32;
+const TEMPLATE_COLUMN_GAP = 48;
+const HEADER_FONT_SIZE = 15;
+const HEADER_LABELS = {
+  status: "Status",
+  templateId: "Template ID",
+  template: "Templates",
+} as const;
 
 export const VizTree: React.FC<VizTreeProps> = ({
   treeData,
@@ -46,14 +56,29 @@ export const VizTree: React.FC<VizTreeProps> = ({
   showStickyLevelHeaders = false,
   compactVerticalSpacing = false,
   extraColumnSpacing,
+  showBadges = true,
 }) => {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [localTree, setLocalTree] = useState<TreeNode | null>(null);
   const [selectedNodePath, setSelectedNodePath] = useState<string | null>(null);
-  const [levelHeaderPos, setLevelHeaderPos] = useState<{ entityX: number; actionX: number; statusX: number }>({
+  const [levelHeaderPos, setLevelHeaderPos] = useState<{
+    entityX: number;
+    actionX: number;
+    statusX: number;
+    templateIdX: number;
+    templateX: number;
+    statusWidth: number;
+    templateIdWidth: number;
+    templateWidth: number;
+  }>({
     entityX: 0,
     actionX: 120,
     statusX: 240,
+    templateIdX: 320,
+    templateX: 360,
+    statusWidth: 80,
+    templateIdWidth: 100,
+    templateWidth: 140,
   });
 
   useEffect(() => {
@@ -78,10 +103,56 @@ export const VizTree: React.FC<VizTreeProps> = ({
       colOffsets[i] = (colOffsets[i - 1] || 0) + widestByDepth[i - 1] + extraColSpacing[i];
     }
     const getYByDepth = (depth: number) => colOffsets[depth];
+
+    const tempSvg = select(document.body).append("svg")
+      .attr("style", "position:absolute; visibility:hidden;")
+      .attr("font-family", font);
+    const measureTextWidth = (text: string, fontSize: number) => {
+      const tempText = tempSvg.append("text")
+        .attr("font-size", fontSize)
+        .text(text);
+      const bbox = tempText.node()?.getBBox();
+      tempText.remove();
+      return bbox?.width ?? 0;
+    };
+
+    const statusTextInset = getFontSize(3) * 0.2;
+    const statusHeaderWidth = measureTextWidth(HEADER_LABELS.status, HEADER_FONT_SIZE);
+    const templateIdHeaderWidth = measureTextWidth(HEADER_LABELS.templateId, HEADER_FONT_SIZE);
+    const templateHeaderWidth = measureTextWidth(HEADER_LABELS.template, HEADER_FONT_SIZE);
+    let maxTemplateIdWidth = 0;
+    let maxTemplateWidth = 0;
+    hierarchy<TreeNode>(localTree, childrenOrCollapsed).descendants().forEach((node) => {
+      if (node.depth !== 3) return;
+
+      maxTemplateIdWidth = Math.max(
+        maxTemplateIdWidth,
+        measureTextWidth(node.data.event_id || "-", Math.max(getFontSize(node.depth) * 0.9, 12))
+      );
+
+      if (!node.data.log_template) return;
+      maxTemplateWidth = Math.max(
+        maxTemplateWidth,
+        measureTextWidth(node.data.log_template, Math.max(getFontSize(node.depth) * 0.9, 12))
+      );
+    });
+    tempSvg.remove();
+
+    const statusX = getYByDepth(3) + statusTextInset;
+    const statusWidth = Math.max(widestByDepth[3] - statusTextInset, statusHeaderWidth);
+    const templateIdWidth = Math.max(maxTemplateIdWidth, templateIdHeaderWidth);
+    const templateWidth = Math.max(maxTemplateWidth, templateHeaderWidth);
+    const templateIdColumnX = statusX + statusWidth + TEMPLATE_ID_COLUMN_GAP;
+    const templateColumnX = templateIdColumnX + templateIdWidth + TEMPLATE_COLUMN_GAP;
     setLevelHeaderPos({
       entityX: getYByDepth(1),
       actionX: getYByDepth(2),
-      statusX: getYByDepth(3),
+      statusX,
+      templateIdX: templateIdColumnX,
+      templateX: templateColumnX,
+      statusWidth,
+      templateIdWidth,
+      templateWidth,
     });
 
     const root = hierarchy<TreeNode>(localTree, childrenOrCollapsed);
@@ -145,13 +216,18 @@ export const VizTree: React.FC<VizTreeProps> = ({
         widestByDepth,
       font,
       adjustedWidth,
-      height,
+        height,
         BASE_FONT,
         collapseEntities,
+        templateIdColumnX,
+        maxTemplateIdWidth,
+        templateColumnX,
+        maxTemplateWidth,
         matchedNodeId,
         showAnomalySymbols,
         collapsible,
         clickableNodes,
+        showBadges,
       disableHoverHighlight,
       showLevelLabels: !showStickyLevelHeaders,
       persistentHighlightNode,
@@ -168,6 +244,7 @@ export const VizTree: React.FC<VizTreeProps> = ({
     showAnomalySymbols,
     collapsible,
     clickableNodes,
+    showBadges,
     disableHoverHighlight,
     onNodeClick,
     selectedNodePath,
@@ -183,9 +260,9 @@ export const VizTree: React.FC<VizTreeProps> = ({
             position: "sticky",
             top: 0,
             zIndex: 5,
-            background: "#fff",
-            borderBottom: "1px solid #edf1f5",
-            minHeight: 30,
+            background: "#f8fafc",
+            borderBottom: "1px solid #e2e8f0",
+            minHeight: 40,
           }}
         >
           <span
@@ -216,6 +293,7 @@ export const VizTree: React.FC<VizTreeProps> = ({
             style={{
               position: "absolute",
               left: levelHeaderPos.statusX,
+              width: levelHeaderPos.statusWidth,
               fontSize: "var(--font-sm)",
               fontWeight: 700,
               color: STATUS_BORDER,
@@ -223,6 +301,34 @@ export const VizTree: React.FC<VizTreeProps> = ({
             }}
           >
             Status
+          </span>
+          <span
+            style={{
+              position: "absolute",
+              left: levelHeaderPos.templateIdX,
+              width: levelHeaderPos.templateIdWidth,
+              fontSize: "var(--font-sm)",
+              fontWeight: 700,
+              color: STATUS_BORDER,
+              whiteSpace: "nowrap",
+              textAlign: "left",
+            }}
+          >
+            Template ID
+          </span>
+          <span
+            style={{
+              position: "absolute",
+              left: levelHeaderPos.templateX,
+              width: levelHeaderPos.templateWidth,
+              fontSize: "var(--font-sm)",
+              fontWeight: 700,
+              color: STATUS_BORDER,
+              whiteSpace: "nowrap",
+              textAlign: "left",
+            }}
+          >
+            Templates
           </span>
         </div>
       )}

@@ -5,6 +5,7 @@ import { About } from "./pages/about"; // Create this page
 import { FileUpload } from "./pages/file_upload"; // Create this page
 import { VisualizeTree } from "./pages/visualize_tree"; // Create this page
 import { VisualizeTable } from "./pages/visualize_table"; // Create this page
+import { TrainingProcess } from "./pages/training_process";
 import { ErrorPage } from "./pages/error_page"
 import { FileProvider } from './FileContext';
 import { KnowledgeBaseViz } from './pages/knowledge_base_viz';
@@ -19,6 +20,7 @@ function App() {
             <Route path="/about" element={<About />} />
             <Route path="/file-upload" element={<FileUpload />} />
             <Route path="/visualize-tree" element={<VisualizeTree />} />
+            <Route path="/training-process" element={<TrainingProcess />} />
             <Route path="/knowledge-base" element={<KnowledgeBaseViz />} />
             <Route path="/sequence-tree" element={<VisualizeTable />} />
             <Route path="*" element={<ErrorPage />} />

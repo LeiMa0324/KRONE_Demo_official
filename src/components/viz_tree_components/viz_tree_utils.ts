@@ -34,15 +34,18 @@ export function highlightRelated(
 ): void {
   const linkColor = NODE_STYLE_STROKE;
   const ancestors = getAncestors(node);
+  const relatedTemplateRows = new Set(
+    node.descendants().filter((descendant) => descendant.depth === 3)
+  );
 
   svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-label")
     .each(function (n) {
       const isRelated = ancestors.has(n);
       select<SVGTextElement, HierarchyNode<TreeNode>>(this)
-        .attr("fill", isRelated ? "#003366" : "#000");
+        .attr("fill", isRelated ? "var(--highlight-text)" : "#000");
       select(this.parentNode as SVGElement).select("rect")
-        .attr("fill", isRelated ? "#B3D8FF" : NODE_STYLE_FILL)
-        .attr("stroke", isRelated ? "#B3D8FF" : NODE_STYLE_STROKE)
+        .attr("fill", isRelated ? "var(--highlight-fill)" : NODE_STYLE_FILL)
+        .attr("stroke", isRelated ? "var(--highlight-fill)" : NODE_STYLE_STROKE)
         .attr("stroke-width", isRelated ? 5 : 2);
     });
 
@@ -52,6 +55,14 @@ export function highlightRelated(
       const isAncestorPath =
         ancestors.has(lnk.source) && ancestors.has(lnk.target);
       return isAncestorPath ? 5 : 2;
+    });
+
+  svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-template-id, text.node-template")
+    .each(function (n) {
+      const isRelated = relatedTemplateRows.has(n);
+      select<SVGTextElement, HierarchyNode<TreeNode>>(this)
+        .attr("fill", isRelated ? "var(--highlight-text)" : "var(--table-cell-muted-text)")
+        .attr("font-weight", isRelated ? 700 : 400);
     });
 }
 
@@ -69,6 +80,9 @@ export function resetHighlight(
   svg.selectAll<SVGPathElement, TreeLink>("path")
     .attr("stroke", linkColor)
     .attr("stroke-width", 2);
+  svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-template-id, text.node-template")
+    .attr("fill", "var(--table-cell-muted-text)")
+    .attr("font-weight", 400);
 }
 
 

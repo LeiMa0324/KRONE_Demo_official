@@ -389,74 +389,84 @@ export const KnowledgeBaseViz = () => {
     }, []);
 
     return (
-        <>
-            <div className="pt-[4.75rem]"></div>
+        <div
+            style={{
+                minHeight: "100vh",
+                height: "100vh",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+            }}
+        >
+            <div className="lg:hidden pt-[4.75rem]"></div>
             <SmallViewportWarning />
-            <div className="hidden lg:block">
-                {/* HEADER AND TITLE */}
-                <div className="text-center my-8">
-                    <h1 className="font-WPIfont text-WPIRed text-6xl font-bold">Knowledge Base Visualization</h1>
-                    <p className="text-WPIGrey/110 text-lg mt-2">
-                        {KNOWLEDGE_BASE_DESC}
-                    </p>
-                    <div className="mt-4 flex justify-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setDataScope("all")}
-                            className={`px-4 py-1.5 rounded-full border text-sm font-WPIfont ${
-                                dataScope === "all"
-                                    ? "bg-neutral-900 text-white border-neutral-900"
-                                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
-                            }`}
+            <div
+                className="hidden lg:flex"
+                style={{
+                    flex: "1 1 auto",
+                    alignItems: "flex-start",
+                    paddingTop: "80px",
+                    paddingLeft: "20px",
+                    paddingRight: "20px",
+                    boxSizing: "border-box",
+                    position: "relative",
+                    overflow: "hidden",
+                }}
+            >
+                <div
+                    style={{
+                        width: "100%",
+                        height: "calc(100% - 24px)",
+                        overflowX: "scroll",
+                        overflowY: "auto",
+                        marginTop: 24,
+                        boxSizing: "border-box",
+                        position: "relative",
+                    }}
+                >
+                    <div style={{ minWidth: 1600 }}>
+                        <div
+                            style={{
+                                position: "sticky",
+                                top: 0,
+                                background: "#fff",
+                                zIndex: 10,
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                                marginBottom: 12,
+                            }}
                         >
-                            All
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDataScope("train")}
-                            className={`px-4 py-1.5 rounded-full border text-sm font-WPIfont ${
-                                dataScope === "train"
-                                    ? "bg-amber-600 text-white border-amber-600"
-                                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
-                            }`}
-                        >
-                            Training only
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDataScope("test")}
-                            className={`px-4 py-1.5 rounded-full border text-sm font-WPIfont ${
-                                dataScope === "test"
-                                    ? "bg-sky-700 text-white border-sky-700"
-                                    : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-100"
-                            }`}
-                        >
-                            Testing only
-                        </button>
+                            <div
+                                style={{
+                                    width: "100%",
+                                    padding: "18px 20px 16px 20px",
+                                    borderBottom: "1px solid #edf1f5",
+                                }}
+                            >
+                                <p style={{ margin: 0, fontSize: "var(--font-sm)", color: "var(--text-label)" }}>
+                                    {KNOWLEDGE_BASE_DESC}
+                                </p>
+                            </div>
+                        </div>
+                        {treeData && (
+                            <VizTree
+                                treeData={treeData}
+                                collapseEntities={false}
+                                collapseActions={false}
+                                collapseStatuses={false}
+                                matchedNodeId={null}
+                                showAnomalySymbols={false}
+                                collapsible={false}
+                                disableHoverHighlight={false}
+                                onNodeClick={handleNodeClick}
+                                clickableNodes={true}
+                                showStickyLevelHeaders={true}
+                                compactVerticalSpacing={true}
+                                extraColumnSpacing={[0, 10, 14, 14]}
+                                showBadges={true}
+                            />
+                        )}
                     </div>
                 </div>
-                
-                {/* TREE DISPLAY */}
-                <div style={{ width: "100%", margin: "0.5rem auto", display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "2rem" }}>
-                    {treeData && (
-                        <>
-                        <VizTree
-                            treeData={treeData}
-                            collapseEntities={false}
-                            collapseActions={false}
-                            collapseStatuses={false}
-                            matchedNodeId={null}
-                            showAnomalySymbols={false}
-                            collapsible={false}
-                            disableHoverHighlight={false}
-                            onNodeClick={handleNodeClick}
-                            clickableNodes={true}
-                        />
-                        </>
-                    )}
-                </div>
-
-                {/* SIDEBAR DISPLAY */}
                 {knowledgeStructures.trainingData && knowledgeStructures.testingData && (
                     <KnowledgeBaseSideBar
                         showSidebar={showSidebar}
@@ -474,14 +484,13 @@ export const KnowledgeBaseViz = () => {
                         defaultTab={defaultTab}
                         treeData={treeData!}
                         dataScope={dataScope}
+                        setDataScope={setDataScope}
                     />
                 )}
             </div>
-
-            {/* FOOTER */}
             <div className="w-full fixed bottom-0">
                 <Footer />
             </div>
-        </>
+        </div>
     );
 };

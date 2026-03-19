@@ -18,6 +18,7 @@ export type VizTreeProps = {
   showStickyLevelHeaders?: boolean;
   compactVerticalSpacing?: boolean;
   extraColumnSpacing?: number[];
+  showBadges?: boolean;
 };
 
 export type HierarchyNodeWithHiddenChildren<T> = HierarchyNode<T> & { _children?: HierarchyNode<T>[] };

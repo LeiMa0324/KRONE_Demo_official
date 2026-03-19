@@ -19,6 +19,7 @@ const BUTTON_STYLE = `
 
 const navLinks = [
     { path: "/visualize-tree", label: "Hierarchy Mining" },
+    { path: "/training-process", label: "Training Process" },
     { path: "/sequence-tree", label: "Log Anomaly Detection" },
     { path: "/knowledge-base", label: "Knowledge Base" },
     { path: "/about", label: "About" },

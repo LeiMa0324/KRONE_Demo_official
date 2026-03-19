@@ -27,6 +27,26 @@ export type KroneDetectRow = {
     anomaly_reason: string;
 };
 
+type VisualizeTableProps = {
+    decomposeDataPath?: string;
+    sequenceTreeProps?: {
+        selectStepLabel?: string;
+        selectControlLabel?: string;
+        decomposeStepLabel?: string;
+        topDescriptionText?: string;
+        hideDetectAndExplainSteps?: boolean;
+        hideSelectStep?: boolean;
+        singleSequenceSectionTitle?: string;
+        batchProcessingSectionTitle?: string;
+        batchProcessingButtonLabel?: string;
+        knowledgeBaseActionLabel?: string;
+        knowledgeBaseActionButtons?: Array<{ id: string; label: string; toastMessage?: string }>;
+        knowledgeBaseActionsInert?: boolean;
+    };
+};
+
+const SEQUENCE_DROPDOWN_LIMIT = 1000;
+
 // Utility function to parse arrays from CSV strings
 const parseArray = (str: string): string[] => {
     if (!str) return [];
@@ -42,15 +62,20 @@ const parseArray = (str: string): string[] => {
 };
 
 // Utility function to fetch and parse Krone Decompose data
-const fetchKroneDecompData = async (filePath: string): Promise<KroneDecompRow[]> => {
+const fetchKroneDecompData = async (filePath: string): Promise<{
+    rows: KroneDecompRow[];
+    totalCount: number;
+    visibleCount: number;
+}> => {
     const response = await fetch(filePath);
     if (!response.ok) {
         console.error("Failed to fetch Krone Decompose data");
-        return [];
+        return { rows: [], totalCount: 0, visibleCount: 0 };
     }
 
     const csvText = await response.text();
-    const parsedData: KroneDecompRow[] = [];
+    let parsedRows: KroneDecompRow[] = [];
+    let totalCount = 0;
 
     Papa.parse<KroneDecompRow>(csvText, {
         header: true,
@@ -66,11 +91,16 @@ const fetchKroneDecompData = async (filePath: string): Promise<KroneDecompRow[]>
                     status_nodes_for_logkeys: parseArray(String(r.status_nodes_for_logkeys ?? "")),
                 };
             });
-            parsedData.push(...rows.slice(0,1000));
+            totalCount = rows.length;
+            parsedRows = rows.slice(0, SEQUENCE_DROPDOWN_LIMIT);
         },
     });
 
-    return parsedData;
+    return {
+        rows: parsedRows,
+        totalCount,
+        visibleCount: Math.min(totalCount, SEQUENCE_DROPDOWN_LIMIT),
+    };
 };
 
 // Utility function to fetch and parse Krone Detection data
@@ -106,8 +136,13 @@ const fetchKroneDetectData = async (filePath: string): Promise<KroneDetectRow[]>
 };
 
 // Main Component
-export const VisualizeTable = () => {
+export const VisualizeTable: React.FC<VisualizeTableProps> = ({
+    decomposeDataPath = "krone_decompose_res.csv",
+    sequenceTreeProps,
+}) => {
     const [kroneDecompData, setKroneDecompData] = useState<KroneDecompRow[]>([]);
+    const [totalSequenceCount, setTotalSequenceCount] = useState(0);
+    const [visibleSequenceCount, setVisibleSequenceCount] = useState(0);
     const [kroneDetectData, setKroneDetectData] = useState<KroneDetectRow[]>([]);
     const [hoveredNode, setHoveredNode] = useState<HierarchyNode<TreeNode> | null>(null);
     const [showInfoSidebar, setShowInfoSidebar] = useState(false);
@@ -115,14 +150,16 @@ export const VisualizeTable = () => {
 
 
     useEffect(() => {
-        fetchKroneDecompData(withBase("krone_decompose_res.csv")).then((data) => {
-            setKroneDecompData(data);
+        fetchKroneDecompData(withBase(decomposeDataPath)).then((data) => {
+            setKroneDecompData(data.rows);
+            setTotalSequenceCount(data.totalCount);
+            setVisibleSequenceCount(data.visibleCount);
         });
 
         fetchKroneDetectData(withBase("krone_detection_res.csv")).then((data) => {
             setKroneDetectData(data);
         });
-    }, []);
+    }, [decomposeDataPath]);
 
     const handleNodeSelect = useCallback((node: HierarchyNode<TreeNode> | null) => {
         setHoveredNode(node);
@@ -167,10 +204,19 @@ export const VisualizeTable = () => {
                     <div style={{ minWidth: 1600 }}>
                         <SequenceTree
                             kroneDecompData={kroneDecompData}
+                            totalSequenceCount={totalSequenceCount}
+                            visibleSequenceCount={visibleSequenceCount}
                             kroneDetectData={kroneDetectData}
                             setHoveredNode={handleNodeSelect}
                             setMultiLineAnomaly={setMultiLineAnomaly}
                             multiLineAnomaly={multiLineAnomaly}
+                            topDescriptionText={
+                                sequenceTreeProps?.topDescriptionText ??
+                                (decomposeDataPath === "krone_decompose_res.csv"
+                                    ? "Explore how krone hierarchically detects a test log sequence"
+                                    : undefined)
+                            }
+                            {...sequenceTreeProps}
                         />
                     </div>
                 </div>

@@ -77,6 +77,7 @@ export const FeaturesDescription = () => (
         <div className="flex flex-col items-center justify-center h-full w-full" style={{ minHeight: 200 }}>
           <SequenceUnitDisplay
             orderNum={1}
+            occurrences={24}
             seq={{
               arr: ["Start", "Succeeds"],
               explanation: "GT",

@@ -21,10 +21,15 @@ interface DrawVizTreeParams {
   height: number;
   BASE_FONT: number;
   collapseEntities: boolean;
+  templateIdColumnX: number;
+  maxTemplateIdWidth: number;
+  templateColumnX: number;
+  maxTemplateWidth: number;
   matchedNodeId?: string | null;
   showAnomalySymbols: boolean;
   collapsible: boolean;
   clickableNodes: boolean;
+  showBadges: boolean;
   disableHoverHighlight: boolean;
   showLevelLabels: boolean;
   persistentHighlightNode?: HierarchyNode<TreeNode> | null;
@@ -39,10 +44,15 @@ export function drawVizTree({
   height,
   BASE_FONT,
   collapseEntities,
+  templateIdColumnX,
+  maxTemplateIdWidth,
+  templateColumnX,
+  maxTemplateWidth,
   matchedNodeId,
   showAnomalySymbols,
   collapsible,
   clickableNodes,
+  showBadges,
   disableHoverHighlight,
   showLevelLabels,
   persistentHighlightNode,
@@ -52,6 +62,7 @@ export function drawVizTree({
   const linkColor = NODE_STYLE_STROKE;
   const labelFontSize = 15;
   const labelToTreeGap = 8;
+  const svgRightPadding = 120;
 
   let x0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   root.each(d => {
@@ -83,6 +94,7 @@ export function drawVizTree({
     const width = Math.max((bbox?.width ?? 0) + getPadding(fontSize) * 2, 52);
     nodeWidthMap.set(node, width);
     tempText.remove();
+
   });
   tempSvg.remove();
 
@@ -90,10 +102,16 @@ export function drawVizTree({
   svg.selectAll("*").remove();
   const verticalOffset = showLevelLabels ? (labelFontSize + labelToTreeGap) : 0;
   const extraBottomPadding = 40;
+  const expandedSvgWidth = Math.max(
+    svgWidth,
+    templateIdColumnX + maxTemplateIdWidth,
+    templateColumnX + maxTemplateWidth + svgRightPadding
+  );
+
   svg
-    .attr("width", svgWidth + 35)
+    .attr("width", expandedSvgWidth + 35)
     .attr("height", height + verticalOffset + extraBottomPadding)
-    .attr("viewBox", `0 ${x0 - verticalOffset} ${svgWidth} ${height + verticalOffset + extraBottomPadding}`)
+    .attr("viewBox", `0 ${x0 - verticalOffset} ${expandedSvgWidth} ${height + verticalOffset + extraBottomPadding}`)
     .attr("style", "max-width: 100%; height: auto; font: 10px;")
     .attr("font-family", font);
 
@@ -190,68 +208,96 @@ export function drawVizTree({
 
       if (d.depth < 1 || d.depth > 3) return;
 
-      const stats = d.data.sequenceStats || { normal: 0, abnormal: 0 };
-      const normalCount = Number(stats.normal) || 0;
-      const abnormalCount = Number(stats.abnormal) || 0;
-      const total = normalCount + abnormalCount;
       const bbox = this.getBBox();
       const nodeGroup = select(this.parentNode as SVGGElement);
       const fontSize = getFontSize(d.depth);
-      const badgeFontSize = Math.max(9, Math.floor(fontSize * 0.72));
-      const badgeHeight = Math.max(11, Math.floor(badgeFontSize * 1.35));
-      const badgeGapY = 3;
-      let badgeX = bbox.x + bbox.width + getPadding(fontSize) + 10;
-      const centerY = bbox.y + bbox.height / 2;
+      if (showBadges) {
+        const stats = d.data.sequenceStats || { normal: 0, abnormal: 0 };
+        const normalCount = Number(stats.normal) || 0;
+        const abnormalCount = Number(stats.abnormal) || 0;
+        const total = normalCount + abnormalCount;
+        const badgeFontSize = Math.max(9, Math.floor(fontSize * 0.72));
+        const badgeHeight = Math.max(11, Math.floor(badgeFontSize * 1.35));
+        const badgeGapY = 3;
+        const badgeX = bbox.x + bbox.width + getPadding(fontSize) + 10;
+        const centerY = bbox.y + bbox.height / 2;
 
-      const drawBadge = (text: string, y: number, style: { fill: string; stroke: string; color: string }) => {
-        const badgeWidth = Math.max(22, Math.ceil(text.length * badgeFontSize * 0.58) + 8);
-        nodeGroup.append("rect")
-          .attr("x", badgeX)
-          .attr("y", y)
-          .attr("width", badgeWidth)
-          .attr("height", badgeHeight)
-          .attr("rx", 4)
-          .attr("ry", 4)
-          .attr("fill", style.fill)
-          .attr("stroke", style.stroke)
-          .attr("stroke-width", 1);
-        nodeGroup.append("text")
-          .attr("x", badgeX + badgeWidth / 2)
-          .attr("y", y + badgeHeight / 2 + 0.5)
-          .attr("text-anchor", "middle")
-          .attr("alignment-baseline", "middle")
-          .attr("font-size", badgeFontSize)
-          .attr("font-weight", 600)
-          .attr("fill", style.color)
-          .text(text);
-      };
+        const drawBadge = (text: string, y: number, style: { fill: string; stroke: string; color: string }) => {
+          const badgeWidth = Math.max(22, Math.ceil(text.length * badgeFontSize * 0.58) + 8);
+          nodeGroup.append("rect")
+            .attr("x", badgeX)
+            .attr("y", y)
+            .attr("width", badgeWidth)
+            .attr("height", badgeHeight)
+            .attr("rx", 4)
+            .attr("ry", 4)
+            .attr("fill", style.fill)
+            .attr("stroke", style.stroke)
+            .attr("stroke-width", 1);
+          nodeGroup.append("text")
+            .attr("x", badgeX + badgeWidth / 2)
+            .attr("y", y + badgeHeight / 2 + 0.5)
+            .attr("text-anchor", "middle")
+            .attr("alignment-baseline", "middle")
+            .attr("font-size", badgeFontSize)
+            .attr("font-weight", 600)
+            .attr("fill", style.color)
+            .text(text);
+        };
 
-      if (total === 0) {
-        drawBadge("0", centerY - badgeHeight / 2, {
-          fill: "#f8fafc",
-          stroke: "#cbd5e1",
-          color: "#475569",
-        });
-      } else {
-        const hasNormal = normalCount > 0;
-        const hasAbnormal = abnormalCount > 0;
-        const topY = hasNormal && hasAbnormal ? centerY - badgeHeight - badgeGapY / 2 : centerY - badgeHeight / 2;
-        const bottomY = centerY + badgeGapY / 2;
+        if (total === 0) {
+          drawBadge("0", centerY - badgeHeight / 2, {
+            fill: "#f8fafc",
+            stroke: "#cbd5e1",
+            color: "#475569",
+          });
+        } else {
+          const hasNormal = normalCount > 0;
+          const hasAbnormal = abnormalCount > 0;
+          const topY = hasNormal && hasAbnormal ? centerY - badgeHeight - badgeGapY / 2 : centerY - badgeHeight / 2;
+          const bottomY = centerY + badgeGapY / 2;
 
-        if (hasNormal) {
-        drawBadge(String(normalCount), topY, {
-          fill: "#f0fdf4",
-          stroke: "#86efac",
-          color: "#166534",
-        });
+          if (hasNormal) {
+            drawBadge(String(normalCount), topY, {
+              fill: "#f0fdf4",
+              stroke: "#86efac",
+              color: "#166534",
+            });
+          }
+
+          if (hasAbnormal) {
+            drawBadge(String(abnormalCount), bottomY, {
+              fill: "#fef2f2",
+              stroke: "#fca5a5",
+              color: "#b91c1c",
+            });
+          }
         }
+      }
 
-        if (hasAbnormal) {
-        drawBadge(String(abnormalCount), bottomY, {
-          fill: "#fef2f2",
-          stroke: "#fca5a5",
-          color: "#b91c1c",
-        });
+      if (d.depth === 3) {
+        nodeGroup.append("text")
+          .attr("class", "node-template-id")
+          .attr("x", templateIdColumnX - (d.y ?? 0))
+          .attr("y", bbox.y + bbox.height / 2)
+          .attr("text-anchor", "start")
+          .attr("alignment-baseline", "middle")
+          .attr("font-size", Math.max(fontSize * 0.9, 12))
+          .attr("fill", "#475569")
+          .style("white-space", "nowrap")
+          .text(d.data.event_id || "-");
+
+        if (d.data.log_template) {
+          nodeGroup.append("text")
+            .attr("class", "node-template")
+            .attr("x", templateColumnX - (d.y ?? 0))
+            .attr("y", bbox.y + bbox.height / 2)
+            .attr("text-anchor", "start")
+            .attr("alignment-baseline", "middle")
+            .attr("font-size", Math.max(fontSize * 0.9, 12))
+            .attr("fill", "#475569")
+            .style("white-space", "nowrap")
+            .text(d.data.log_template);
         }
       }
     });
