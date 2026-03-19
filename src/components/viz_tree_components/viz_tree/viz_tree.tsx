@@ -35,6 +35,7 @@ const DIV_STYLE = { flex: 1, width: "100%", height: "100%", overflow: "auto" };
 const TEMPLATE_ID_COLUMN_GAP = 32;
 const TEMPLATE_COLUMN_GAP = 48;
 const HEADER_FONT_SIZE = 15;
+const TEMPLATE_PREVIEW_LENGTH = 60;
 const HEADER_LABELS = {
   status: "Status",
   templateId: "Log key",
@@ -61,6 +62,7 @@ export const VizTree: React.FC<VizTreeProps> = ({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [localTree, setLocalTree] = useState<TreeNode | null>(null);
   const [selectedNodePath, setSelectedNodePath] = useState<string | null>(null);
+  const [expandedTemplatePaths, setExpandedTemplatePaths] = useState<string[]>([]);
   const [levelHeaderPos, setLevelHeaderPos] = useState<{
     entityX: number;
     actionX: number;
@@ -89,6 +91,7 @@ export const VizTree: React.FC<VizTreeProps> = ({
     setCollapseAtDepth(cloned, 3, collapseStatuses);
     addIndexPath(cloned);
     setLocalTree(cloned);
+    setExpandedTemplatePaths([]);
   }, [treeData, collapseEntities, collapseActions, collapseStatuses]);
 
   useEffect(() => {
@@ -228,9 +231,18 @@ export const VizTree: React.FC<VizTreeProps> = ({
         collapsible,
         clickableNodes,
         showBadges,
+        expandedTemplatePaths,
+        templatePreviewLength: TEMPLATE_PREVIEW_LENGTH,
       disableHoverHighlight,
       showLevelLabels: !showStickyLevelHeaders,
       persistentHighlightNode,
+      onToggleTemplateExpand: (node) => {
+        const pathKey = (node.data.indexPath || []).join(".");
+        if (!pathKey) return;
+        setExpandedTemplatePaths((prev) =>
+          prev.includes(pathKey) ? prev.filter((item) => item !== pathKey) : [...prev, pathKey]
+        );
+      },
       onNodeClick: (node) => {
         setSelectedNodePath((node.data.indexPath || []).join("."));
         setHoveredNode?.(node);
@@ -245,6 +257,7 @@ export const VizTree: React.FC<VizTreeProps> = ({
     collapsible,
     clickableNodes,
     showBadges,
+    expandedTemplatePaths,
     disableHoverHighlight,
     onNodeClick,
     selectedNodePath,

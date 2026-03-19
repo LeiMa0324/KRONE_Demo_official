@@ -30,9 +30,12 @@ interface DrawVizTreeParams {
   collapsible: boolean;
   clickableNodes: boolean;
   showBadges: boolean;
+  expandedTemplatePaths: string[];
+  templatePreviewLength: number;
   disableHoverHighlight: boolean;
   showLevelLabels: boolean;
   persistentHighlightNode?: HierarchyNode<TreeNode> | null;
+  onToggleTemplateExpand?: (node: HierarchyNode<TreeNode>) => void;
   onNodeClick?: (node: HierarchyNode<TreeNode>) => void;
 }
 
@@ -53,9 +56,12 @@ export function drawVizTree({
   collapsible,
   clickableNodes,
   showBadges,
+  expandedTemplatePaths,
+  templatePreviewLength,
   disableHoverHighlight,
   showLevelLabels,
   persistentHighlightNode,
+  onToggleTemplateExpand,
   onNodeClick,
 }: DrawVizTreeParams) {
   const levelLabels = ["Entity", "Action", "Status"];
@@ -112,7 +118,7 @@ export function drawVizTree({
     .attr("width", expandedSvgWidth + 35)
     .attr("height", height + verticalOffset + extraBottomPadding)
     .attr("viewBox", `0 ${x0 - verticalOffset} ${expandedSvgWidth} ${height + verticalOffset + extraBottomPadding}`)
-    .attr("style", "max-width: 100%; height: auto; font: 10px;")
+    .attr("style", "max-width: none; height: auto; font: 10px;")
     .attr("font-family", font);
 
   if (showLevelLabels) {
@@ -288,7 +294,14 @@ export function drawVizTree({
           .text(d.data.event_id || "-");
 
         if (d.data.log_template) {
-          nodeGroup.append("text")
+          const pathKey = (d.data.indexPath || []).join(".");
+          const isExpanded = expandedTemplatePaths.includes(pathKey);
+          const isLongTemplate = d.data.log_template.length > templatePreviewLength;
+          const displayedTemplate = !isLongTemplate || isExpanded
+            ? d.data.log_template
+            : `${d.data.log_template.slice(0, templatePreviewLength)}...`;
+
+          const templateText = nodeGroup.append("text")
             .attr("class", "node-template")
             .attr("x", templateColumnX - (d.y ?? 0))
             .attr("y", bbox.y + bbox.height / 2)
@@ -297,7 +310,42 @@ export function drawVizTree({
             .attr("font-size", Math.max(fontSize * 0.9, 12))
             .attr("fill", "#475569")
             .style("white-space", "nowrap")
-            .text(d.data.log_template);
+            .text(displayedTemplate);
+
+          if (isLongTemplate) {
+            const templateBBox = templateText.node()?.getBBox();
+            const buttonLabel = isExpanded ? "Collapse" : "Expand";
+            const buttonHeight = 18;
+            const buttonWidth = buttonLabel === "Collapse" ? 56 : 46;
+            const buttonX = (templateBBox?.x ?? (templateColumnX - (d.y ?? 0))) + (templateBBox?.width ?? 0) + 10;
+            const buttonY = bbox.y + bbox.height / 2 - buttonHeight / 2;
+            const buttonGroup = nodeGroup.append("g")
+              .attr("class", "node-template-toggle")
+              .attr("transform", `translate(${buttonX},${buttonY})`)
+              .style("cursor", "pointer")
+              .on("click", function (event: MouseEvent) {
+                event.stopPropagation();
+                onToggleTemplateExpand?.(d);
+              });
+
+            buttonGroup.append("rect")
+              .attr("width", buttonWidth)
+              .attr("height", buttonHeight)
+              .attr("rx", 9)
+              .attr("ry", 9)
+              .attr("fill", "#f0f9ff")
+              .attr("stroke", "#bae6fd");
+
+            buttonGroup.append("text")
+              .attr("x", buttonWidth / 2)
+              .attr("y", buttonHeight / 2)
+              .attr("text-anchor", "middle")
+              .attr("alignment-baseline", "middle")
+              .attr("font-size", 12)
+              .attr("font-weight", 600)
+              .attr("fill", "#0369a1")
+              .text(buttonLabel);
+          }
         }
       }
     });

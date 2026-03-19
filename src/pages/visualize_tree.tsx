@@ -7,6 +7,9 @@ import { Footer } from "@/components/footer";
 import { Loader2, Sparkles } from "lucide-react";
 import { withBase } from "@/lib/base-url";
 
+const TEMPLATE_TABLE_FONT_SIZE = "var(--font-sm)";
+const TEMPLATE_PREVIEW_LENGTH = 80;
+
 export const VisualizeTree: React.FC = () => {
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
   const [showTemplateSelectControl, setShowTemplateSelectControl] = useState(false);
@@ -14,6 +17,7 @@ export const VisualizeTree: React.FC = () => {
   const [isTemplatesLoaded, setIsTemplatesLoaded] = useState(false);
   const [isHierarchyExtracted, setIsHierarchyExtracted] = useState(false);
   const [isExtractingHierarchy, setIsExtractingHierarchy] = useState(false);
+  const [expandedTemplateRows, setExpandedTemplateRows] = useState<number[]>([]);
   const extractTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -207,6 +211,7 @@ export const VisualizeTree: React.FC = () => {
                     if (!selectedTemplateSource) return;
                     setIsTemplatesLoaded(true);
                     setIsHierarchyExtracted(false);
+                    setExpandedTemplateRows([]);
                   }}
                   style={{
                     height: 30,
@@ -224,16 +229,45 @@ export const VisualizeTree: React.FC = () => {
                   Load
                 </button>
                 {isTemplatesLoaded && (
-                  <span
-                    style={{
-                      color: "#0369a1",
-                      fontSize: "var(--font-sm)",
-                      fontWeight: 500,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Loaded {templateRows.length} templates
-                  </span>
+                  <>
+                    <span
+                      style={{
+                        color: "#0369a1",
+                        fontSize: "var(--font-sm)",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Loaded {templateRows.length} templates
+                    </span>
+                    <span
+                      style={{
+                        color: "#475569",
+                        fontSize: "var(--font-sm)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Entity: {treeStats.entityCount}
+                    </span>
+                    <span
+                      style={{
+                        color: "#475569",
+                        fontSize: "var(--font-sm)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Action: {treeStats.actionCount}
+                    </span>
+                    <span
+                      style={{
+                        color: "#475569",
+                        fontSize: "var(--font-sm)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Status: {treeStats.statusCount}
+                    </span>
+                  </>
                 )}
               </div>
             )}
@@ -253,22 +287,8 @@ export const VisualizeTree: React.FC = () => {
             }}
           >
             <div style={{ flex: "1 1 auto", minWidth: 0, height: "100%", overflow: "auto", display: "flex", flexDirection: "column" }}>
-              <div
-                style={{
-                  marginBottom: 20,
-                  fontSize: "var(--font-md)",
-                  color: "#334155",
-                  display: "flex",
-                  gap: 24,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span><strong>Entity:</strong> {treeStats.entityCount}</span>
-                <span><strong>Action:</strong> {treeStats.actionCount}</span>
-                <span><strong>Status:</strong> {treeStats.statusCount}</span>
-              </div>
               <div className="text-center " style={{ paddingTop: "0.5rem", paddingBottom: "2rem" }} >
-                <h1 className="font-WPIfont text-black text-2xl font-bold">Hierarchy Tree</h1>
+                <h1 className="font-WPIfont text-black text-2xl font-bold">Krone-tree</h1>
               </div>
               {treeData && (
                 <VizTree
@@ -325,10 +345,10 @@ export const VisualizeTree: React.FC = () => {
                   borderBottom: "1px solid var(--table-header-border)",
                 }}
               >
-                <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
+                <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: TEMPLATE_TABLE_FONT_SIZE, fontWeight: 700, color: "var(--table-header-text)" }}>
                   Log key
                 </div>
-                <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)", textAlign: "left" }}>
+                <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: TEMPLATE_TABLE_FONT_SIZE, fontWeight: 700, color: "var(--table-header-text)", textAlign: "left" }}>
                   Templates
                 </div>
               </div>
@@ -345,7 +365,7 @@ export const VisualizeTree: React.FC = () => {
                   <div
                     style={{
                       padding: "var(--table-cell-py) var(--table-cell-px)",
-                      fontSize: "var(--font-sm)",
+                      fontSize: TEMPLATE_TABLE_FONT_SIZE,
                       color: "var(--table-cell-muted-text)",
                       whiteSpace: "nowrap",
                     }}
@@ -355,13 +375,50 @@ export const VisualizeTree: React.FC = () => {
                   <div
                     style={{
                       padding: "var(--table-cell-py) var(--table-cell-px)",
-                      fontSize: "var(--font-sm)",
+                      fontSize: TEMPLATE_TABLE_FONT_SIZE,
                       color: "var(--table-cell-text)",
                       minWidth: 0,
                       textAlign: "left",
                     }}
                   >
-                    {row.template}
+                    {(() => {
+                      const isExpanded = expandedTemplateRows.includes(index);
+                      const isLongTemplate = row.template.length > TEMPLATE_PREVIEW_LENGTH;
+                      const displayTemplate =
+                        !isLongTemplate || isExpanded
+                          ? row.template
+                          : `${row.template.slice(0, TEMPLATE_PREVIEW_LENGTH)}...`;
+
+                      return (
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between" }}>
+                          <span style={{ flex: "1 1 auto", minWidth: 0, lineHeight: 1.5 }}>{displayTemplate}</span>
+                          {isLongTemplate && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExpandedTemplateRows((prev) =>
+                                  prev.includes(index) ? prev.filter((rowIndex) => rowIndex !== index) : [...prev, index]
+                                );
+                              }}
+                              style={{
+                                flex: "0 0 auto",
+                                border: "1px solid #bae6fd",
+                                background: "#f0f9ff",
+                                color: "#0369a1",
+                                borderRadius: 999,
+                                padding: "2px 10px",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                lineHeight: 1.4,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {isExpanded ? "Collapse" : "Expand"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}
