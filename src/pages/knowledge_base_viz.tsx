@@ -9,7 +9,7 @@ import { SmallViewportWarning } from "@/components/smallViewportWarning";
 import { withBase } from "@/lib/base-url";
 
 //CONSTANTS
-const KNOWLEDGE_BASE_DESC = "Explore the knowledge base by interacting with the visualization below. Click on a node to query its child sequences."
+const KNOWLEDGE_BASE_DESC = "Explore the knowledge base by interacting with the visualization below. Click on a node to query its child Krone-seqs."
 const ROOT_QUERY = "Root";
 
 //TYPES

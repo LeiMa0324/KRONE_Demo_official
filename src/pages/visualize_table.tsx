@@ -42,6 +42,16 @@ type VisualizeTableProps = {
         knowledgeBaseActionLabel?: string;
         knowledgeBaseActionButtons?: Array<{ id: string; label: string; toastMessage?: string }>;
         knowledgeBaseActionsInert?: boolean;
+        dynamicStepDescriptions?: {
+            initial?: string;
+            afterSelect?: string;
+            afterDecompose?: string;
+            afterDetect?: string;
+            afterExplain?: string;
+            afterStatusSave?: string;
+            afterActionSave?: string;
+            afterEntitySave?: string;
+        };
     };
 };
 

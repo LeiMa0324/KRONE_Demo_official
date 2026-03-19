@@ -50,6 +50,16 @@ type SequenceTreeProps = {
     knowledgeBaseActionLabel?: string;
     knowledgeBaseActionButtons?: Array<{ id: string; label: string; toastMessage?: string }>;
     knowledgeBaseActionsInert?: boolean;
+    dynamicStepDescriptions?: {
+        initial?: string;
+        afterSelect?: string;
+        afterDecompose?: string;
+        afterDetect?: string;
+        afterExplain?: string;
+        afterStatusSave?: string;
+        afterActionSave?: string;
+        afterEntitySave?: string;
+    };
 };
 
 
@@ -90,6 +100,18 @@ type OrderedEntitySequence = {
     label: string;
     actionPathKeys: string[];
     lineNumbers: number[];
+};
+
+type ResultDialogState = {
+    title: string;
+    icon: string;
+    iconBackground: string;
+    iconColor: string;
+    buttonBorder: string;
+    buttonBackground: string;
+    buttonColor: string;
+    ariaLabel: string;
+    content: React.ReactNode;
 };
 
 const collectOrderedActionSequences = (treeData: TreeNode | null): OrderedActionSequence[] => {
@@ -305,6 +327,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     knowledgeBaseActionLabel = "5 Add to Knowledge Base",
     knowledgeBaseActionButtons,
     knowledgeBaseActionsInert = false,
+    dynamicStepDescriptions,
 }) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
     const sequenceSelectRef = useRef<HTMLSelectElement | null>(null);
@@ -323,7 +346,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const [anomalyLevelMulti, setAnomalyLevelMulti] = useState("Normal");
     const [kbToastMessage, setKbToastMessage] = useState<string | null>(null);
     const [kbToastVisible, setKbToastVisible] = useState(false);
-    const [kbDialogMessage, setKbDialogMessage] = useState<string | null>(null);
+    const [resultDialog, setResultDialog] = useState<ResultDialogState | null>(null);
     const [savedKnowledgeBaseActionIds, setSavedKnowledgeBaseActionIds] = useState<string[]>([]);
     const [activeKnowledgeBaseActionPath, setActiveKnowledgeBaseActionPath] = useState<string | null>(null);
     const [completedKnowledgeBaseActionPaths, setCompletedKnowledgeBaseActionPaths] = useState<string[]>([]);
@@ -337,6 +360,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const [isBatchProcessingAllSequences, setIsBatchProcessingAllSequences] = useState(false);
     const [batchProcessingStepLabel, setBatchProcessingStepLabel] = useState<string | null>(null);
     const [batchProcessingProgress, setBatchProcessingProgress] = useState(0);
+    const [detectStepLabel, setDetectStepLabel] = useState<string | null>(null);
+    const [detectProgress, setDetectProgress] = useState(0);
+    const [hasAcknowledgedDetectResult, setHasAcknowledgedDetectResult] = useState(false);
     const [explanationModalPos, setExplanationModalPos] = useState({ x: 220, y: 160 });
     const [explanationModalWidth, setExplanationModalWidth] = useState(460);
     const decomposeTimerRef = useRef<number | null>(null);
@@ -347,6 +373,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const kbToastHideTimerRef = useRef<number | null>(null);
     const kbToastRemoveTimerRef = useRef<number | null>(null);
     const knowledgeBaseAnimationRunRef = useRef(0);
+    const detectAnimationRunRef = useRef(0);
     const [columnHeaderPos, setColumnHeaderPos] = useState<{
         entityX: number;
         actionX: number;
@@ -371,11 +398,15 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     };
 
     const resetDetectingState = () => {
+        detectAnimationRunRef.current += 1;
         if (detectTimerRef.current !== null) {
             window.clearTimeout(detectTimerRef.current);
             detectTimerRef.current = null;
         }
         setIsDetecting(false);
+        setDetectStepLabel(null);
+        setDetectProgress(0);
+        setHasAcknowledgedDetectResult(false);
     };
 
     const resetDecomposingState = () => {
@@ -401,7 +432,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setIsBatchProcessingAllSequences(false);
         setBatchProcessingStepLabel(null);
         setBatchProcessingProgress(0);
-        setKbDialogMessage(null);
+        setResultDialog(null);
     }, []);
 
     useEffect(() => {
@@ -1247,11 +1278,6 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const abnormalSeqIdSet = useMemo(() => {
         return new Set(kroneDetectData.map((row) => row.seq_id));
     }, [kroneDetectData]);
-    const abnormalSequenceCount = useMemo(() => {
-        return kroneDecompData.reduce((count, row) => (
-            abnormalSeqIdSet.has(row.seq_id) ? count + 1 : count
-        ), 0);
-    }, [kroneDecompData, abnormalSeqIdSet]);
     const resolvedTotalSequenceCount = totalSequenceCount ?? kroneDecompData.length;
     const resolvedVisibleSequenceCount = visibleSequenceCount ?? kroneDecompData.length;
     const sortedSequenceRows = useMemo(() => {
@@ -1283,6 +1309,25 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         }
         return null;
     })();
+    const anomalyLineNumbersForSeq = useMemo(() => {
+        const sequence = selectedDecomp?.seq || [];
+        if (!sequence.length || !anomalyRowsForSeq.length) return [] as number[];
+        const lineNumbers = new Set<number>();
+        for (const row of anomalyRowsForSeq) {
+            const seg = row.anomaly_seg || [];
+            if (!seg.length) continue;
+            for (let i = 0; i <= sequence.length - seg.length; i++) {
+                if (arraysEqual(sequence.slice(i, i + seg.length), seg)) {
+                    for (let j = i; j < i + seg.length; j++) {
+                        lineNumbers.add(j);
+                    }
+                    break;
+                }
+            }
+        }
+        return Array.from(lineNumbers).sort((a, b) => a - b);
+    }, [selectedDecomp, anomalyRowsForSeq]);
+    const anomalyLineNumberSet = useMemo(() => new Set(anomalyLineNumbersForSeq), [anomalyLineNumbersForSeq]);
     const anomalyExplanationText = anomalyRow?.anomaly_reason || "-";
     let anomalyLevel = "-";
     if (selectedSeqId && showDetected) {
@@ -1321,6 +1366,67 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         }
         return "-";
     })();
+    const anomalyStatusNodeListText = (() => {
+        if (!selectedDecomp || !anomalyLineNumbersForSeq.length) return "-";
+        const statusNodes = anomalyLineNumbersForSeq
+            .map((lineNumber) => normalizeLabelText(selectedDecomp.status_nodes_for_logkeys[lineNumber]))
+            .filter(Boolean);
+        return statusNodes.length ? `[${statusNodes.join(", ")}]` : "-";
+    })();
+    const anomalyActionNodeLabel = (() => {
+        if (!selectedDecomp || anomalyStartLine === null) return "-";
+        return normalizeLabelText(selectedDecomp.action_nodes_for_logkeys[anomalyStartLine]) || "-";
+    })();
+    const anomalyReasonParentText = (() => {
+        if (!selectedDecomp || anomalyStartLine === null || !anomalyRow?.anomaly_level) return "parent -";
+        if (anomalyRow.anomaly_level === "status") {
+            return `action ${anomalyActionNodeLabel}`;
+        }
+        if (anomalyRow.anomaly_level === "action") {
+            const entityName = normalizeLabelText(selectedDecomp.entity_nodes_for_logkeys[anomalyStartLine]) || "-";
+            return `entity ${entityName}`;
+        }
+        if (anomalyRow.anomaly_level === "entity") {
+            return "root Root";
+        }
+        return "parent -";
+    })();
+    const kroneLevelSeqLabel = (() => {
+        const levelRaw = String(anomalyRow?.anomaly_level ?? "").trim().toLowerCase();
+        return levelRaw ? `Krone ${levelRaw}-seq` : "Krone seq";
+    })();
+    const kroneLevelSeqText = (() => {
+        if (!selectedDecomp || !anomalyLineNumbersForSeq.length || !anomalyRow?.anomaly_level) return "-";
+        if (anomalyRow.anomaly_level === "status") {
+            return anomalyStatusNodeListText;
+        }
+        if (anomalyRow.anomaly_level === "action") {
+            const actionNodes = Array.from(
+                new Set(
+                    anomalyLineNumbersForSeq
+                        .map((lineNumber) => normalizeLabelText(selectedDecomp.action_nodes_for_logkeys[lineNumber]))
+                        .filter(Boolean)
+                )
+            );
+            return actionNodes.length ? `[${actionNodes.join(", ")}]` : "-";
+        }
+        if (anomalyRow.anomaly_level === "entity") {
+            const entityNodes = Array.from(
+                new Set(
+                    anomalyLineNumbersForSeq
+                        .map((lineNumber) => normalizeLabelText(selectedDecomp.entity_nodes_for_logkeys[lineNumber]))
+                        .filter(Boolean)
+                )
+            );
+            return entityNodes.length ? `[${entityNodes.join(", ")}]` : "-";
+        }
+        return "-";
+    })();
+    const anomalyDialogReasonText = (() => {
+        const levelRaw = String(anomalyRow?.anomaly_level ?? "").trim().toLowerCase();
+        const levelPrefix = levelRaw ? `${levelRaw}-seq` : "seq";
+        return `${levelPrefix} ${kroneLevelSeqText} of ${anomalyReasonParentText} does not exist in the training knowledge base! Please use LLM to further verify!`;
+    })();
 
     type FlowStepId = "select" | "decompose" | "detect" | "explain";
     const canDecompose = !!selectedSeqId && !showDecomposed && !isDecomposing;
@@ -1344,6 +1450,47 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         !isBatchProcessingAllSequences;
     const hasIntermediateSection = showSelectControl || showDetected;
     const showDualSectionHeader = !!singleSequenceSectionTitle || !!batchProcessingSectionTitle || !!batchProcessingButtonLabel;
+    const dynamicStepDescription = useMemo(() => {
+        if (hideDetectAndExplainSteps) {
+            if (savedKnowledgeBaseActionIds.includes("entity-seq")) {
+                return dynamicStepDescriptions?.afterEntitySave ?? dynamicStepDescriptions?.afterActionSave ?? null;
+            }
+            if (savedKnowledgeBaseActionIds.includes("action-seq")) {
+                return dynamicStepDescriptions?.afterActionSave ?? null;
+            }
+            if (savedKnowledgeBaseActionIds.includes("status-seq")) {
+                return dynamicStepDescriptions?.afterStatusSave ?? null;
+            }
+            if (showDecomposed) {
+                return dynamicStepDescriptions?.afterDecompose ?? null;
+            }
+            if (selectedSeqId) {
+                return dynamicStepDescriptions?.afterSelect ?? null;
+            }
+            return dynamicStepDescriptions?.initial ?? null;
+        }
+        if (hasExplainedAnomaly) {
+            return dynamicStepDescriptions?.afterExplain ?? "Add the LLM verification result and explanation into the knowledge base for result caching!";
+        }
+        if (showDetected) {
+            return dynamicStepDescriptions?.afterDetect ?? "Now use LLM to verify the detected segment (Krone-seq) and generate explanation.";
+        }
+        if (showDecomposed) {
+            return dynamicStepDescriptions?.afterDecompose ?? "Now Krone hierarchically detect the segments (Krone-seqs) using pattern matching, by examining if one exist in the training knowledge base";
+        }
+        if (selectedSeqId) {
+            return dynamicStepDescriptions?.afterSelect ?? "Use the extracted Krone-tree to decompose the test log sequence";
+        }
+        return dynamicStepDescriptions?.initial ?? "Select one of our provide test log sequence";
+    }, [
+        dynamicStepDescriptions,
+        hasExplainedAnomaly,
+        hideDetectAndExplainSteps,
+        savedKnowledgeBaseActionIds,
+        selectedSeqId,
+        showDecomposed,
+        showDetected,
+    ]);
     const activeStepId: FlowStepId = (() => {
         if (isExplaining || showAnomalyExplanation) return "explain";
         if (isDetecting || showDetected) return "detect";
@@ -1353,8 +1500,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const baseFlowSteps: Array<{ id: FlowStepId; label: string; done: boolean; disabled: boolean }> = [
         { id: "select", label: selectStepLabel, done: !!selectedSeqId, disabled: false },
         { id: "decompose", label: decomposeStepLabel, done: showDecomposed, disabled: !selectedSeqId || isDecomposing },
-        { id: "detect", label: "3 Detect and localize", done: showDetected, disabled: !selectedSeqId || !showDecomposed },
-        { id: "explain", label: "4 Explain", done: hasExplainedAnomaly, disabled: !canExplain && !hasExplainedAnomaly },
+        { id: "detect", label: "3 Detect and localize (pattern matching)", done: showDetected, disabled: !selectedSeqId || !showDecomposed },
+        { id: "explain", label: "4 LLM Verify and Explain", done: hasExplainedAnomaly, disabled: !canExplain && !hasExplainedAnomaly },
     ];
     const flowSteps: Array<{ id: FlowStepId; label: string; done: boolean; disabled: boolean }> = baseFlowSteps.filter(
         (step) =>
@@ -1399,6 +1546,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setShowSelectControl(true);
         setShowDecomposed(false);
         setShowDetected(false);
+        setHasAcknowledgedDetectResult(false);
         resetDecomposingState();
         resetDetectingState();
         resetExplanationState();
@@ -1417,6 +1565,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         resetKnowledgeBaseSequenceState();
         setShowDecomposed(false);
         setShowDetected(false);
+        setHasAcknowledgedDetectResult(false);
         resetDecomposingState();
         resetDetectingState();
         resetExplanationState();
@@ -1432,14 +1581,115 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         if (!canDetect) return;
         setHoveredNode?.(null);
         setShowDetected(false);
+        setHasAcknowledgedDetectResult(false);
         resetExplanationState();
         resetDetectingState();
+        setActiveKnowledgeBaseActionPath(null);
+        setCompletedKnowledgeBaseActionPaths([]);
+        setActiveKnowledgeBaseEntityPath(null);
+        setCompletedKnowledgeBaseEntityPaths([]);
+        setIsActiveKnowledgeBaseRoot(false);
+        setIsCompletedKnowledgeBaseRoot(false);
+        const currentRunId = detectAnimationRunRef.current + 1;
+        detectAnimationRunRef.current = currentRunId;
         setIsDetecting(true);
-        detectTimerRef.current = window.setTimeout(() => {
+        setDetectStepLabel("Status level detection");
+        setDetectProgress(0);
+
+        const finalizeDetect = (detected: boolean) => {
+            if (detectAnimationRunRef.current !== currentRunId) return;
             setIsDetecting(false);
             setShowDetected(true);
+            setDetectStepLabel(null);
+            setDetectProgress(0);
+            setActiveKnowledgeBaseActionPath(null);
+            setActiveKnowledgeBaseEntityPath(null);
+            setIsActiveKnowledgeBaseRoot(false);
             detectTimerRef.current = null;
-        }, 900);
+            if (detected) {
+                openAnomalyDetectedDialog();
+            } else {
+                setHasAcknowledgedDetectResult(true);
+            }
+        };
+
+        detectTimerRef.current = window.setTimeout(async () => {
+            for (const actionSequence of orderedActionSequences) {
+                if (detectAnimationRunRef.current !== currentRunId) return;
+                setActiveKnowledgeBaseActionPath(actionSequence.pathKey);
+                const firstLineNumber = actionSequence.lineNumbers[0];
+                if (typeof firstLineNumber === "number") {
+                    const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
+                    rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                }
+                await waitForKnowledgeBaseAnimation(420);
+                if (detectAnimationRunRef.current !== currentRunId) return;
+
+                const hasStatusLevelAnomaly =
+                    anomalyRow?.anomaly_level === "status" &&
+                    actionSequence.lineNumbers.some((lineNumber) => anomalyLineNumberSet.has(lineNumber));
+
+                if (hasStatusLevelAnomaly) {
+                    finalizeDetect(true);
+                    return;
+                }
+
+                setCompletedKnowledgeBaseActionPaths((prev) =>
+                    prev.includes(actionSequence.pathKey) ? prev : [...prev, actionSequence.pathKey]
+                );
+                await waitForKnowledgeBaseAnimation(180);
+            }
+
+            if (detectAnimationRunRef.current !== currentRunId) return;
+            setActiveKnowledgeBaseActionPath(null);
+            setDetectProgress(33);
+            setDetectStepLabel("Action level detection");
+
+            for (const entitySequence of orderedEntitySequences) {
+                if (detectAnimationRunRef.current !== currentRunId) return;
+                setActiveKnowledgeBaseEntityPath(entitySequence.pathKey);
+                const firstLineNumber = entitySequence.lineNumbers[0];
+                if (typeof firstLineNumber === "number") {
+                    const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
+                    rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                }
+                await waitForKnowledgeBaseAnimation(420);
+                if (detectAnimationRunRef.current !== currentRunId) return;
+
+                const hasActionLevelAnomaly =
+                    anomalyRow?.anomaly_level === "action" &&
+                    entitySequence.lineNumbers.some((lineNumber) => anomalyLineNumberSet.has(lineNumber));
+
+                if (hasActionLevelAnomaly) {
+                    finalizeDetect(true);
+                    return;
+                }
+
+                setCompletedKnowledgeBaseEntityPaths((prev) =>
+                    prev.includes(entitySequence.pathKey) ? prev : [...prev, entitySequence.pathKey]
+                );
+                await waitForKnowledgeBaseAnimation(180);
+            }
+
+            if (detectAnimationRunRef.current !== currentRunId) return;
+            setActiveKnowledgeBaseEntityPath(null);
+            setDetectProgress(66);
+            setDetectStepLabel("Entity level detection");
+            setIsActiveKnowledgeBaseRoot(true);
+            await waitForKnowledgeBaseAnimation(520);
+            if (detectAnimationRunRef.current !== currentRunId) return;
+
+            if (anomalyRow?.anomaly_level === "entity") {
+                finalizeDetect(true);
+                return;
+            }
+
+            setIsActiveKnowledgeBaseRoot(false);
+            setIsCompletedKnowledgeBaseRoot(true);
+            setDetectProgress(100);
+            await waitForKnowledgeBaseAnimation(180);
+            finalizeDetect(false);
+        }, 220);
     };
 
     const runExplain = () => {
@@ -1468,6 +1718,58 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         new Promise<void>((resolve) => {
             window.setTimeout(resolve, ms);
         });
+
+    const openKnowledgeBaseResultDialog = (message: string) => {
+        setResultDialog({
+            title: "Added to Knowledge Base",
+            icon: "✓",
+            iconBackground: "#16a34a",
+            iconColor: "#fff",
+            buttonBorder: "#86efac",
+            buttonBackground: "#f0fdf4",
+            buttonColor: "#166534",
+            ariaLabel: "Knowledge base save result",
+            content: message,
+        });
+    };
+
+    const openAnomalyDetectedDialog = () => {
+        setResultDialog({
+            title: "Anomaly Detected! Krone Early Stopped.",
+            icon: "!",
+            iconBackground: "#dc2626",
+            iconColor: "#fff",
+            buttonBorder: "#fca5a5",
+            buttonBackground: "#fef2f2",
+            buttonColor: "#991b1b",
+            ariaLabel: "Anomaly detection result",
+            content: (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                    {[
+                        { label: "Abnormal log key segment", value: anomalySegmentLinkText || "-" },
+                        { label: "Sequence prediction", value: "Abnormal" },
+                        { label: "Anomaly level", value: anomalyLevelText },
+                        { label: "Reason", value: anomalyDialogReasonText },
+                    ].map((item, index) => (
+                        <div
+                            key={item.label}
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "190px minmax(0, 1fr)",
+                                columnGap: 12,
+                                alignItems: "start",
+                                padding: "10px 0",
+                                borderBottom: index === 3 ? "none" : "1px solid #edf1f5",
+                            }}
+                        >
+                            <span style={{ color: "var(--text-label)", fontWeight: 600 }}>{item.label}</span>
+                            <span>{item.value}</span>
+                        </div>
+                    ))}
+                </div>
+            ),
+        });
+    };
 
     const runStatusSequenceKnowledgeBaseSave = useCallback(async () => {
         if (!canAddToKnowledgeBase || isSavingStatusSequence || !orderedActionSequences.length) return;
@@ -1503,7 +1805,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             prev.includes("status-seq") ? prev : [...prev, "status-seq"]
         ));
         setIsSavingStatusSequence(false);
-        setKbDialogMessage(
+        openKnowledgeBaseResultDialog(
             `${orderedActionSequences.length} number of status-seqs of ${orderedActionSequences.length} actions, have been added to knowledge base as ground-truth!`
         );
     }, [canAddToKnowledgeBase, isSavingStatusSequence, orderedActionSequences, setHoveredNode]);
@@ -1541,7 +1843,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             prev.includes("action-seq") ? prev : [...prev, "action-seq"]
         ));
         setIsSavingActionSequence(false);
-        setKbDialogMessage(
+        openKnowledgeBaseResultDialog(
             `${orderedEntitySequences.length} number of action-seqs of ${orderedEntitySequences.length} entities, have been added to knowledge base as ground-truth!`
         );
     }, [canAddToKnowledgeBase, isSavingActionSequence, orderedEntitySequences, setHoveredNode]);
@@ -1571,7 +1873,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             prev.includes("entity-seq") ? prev : [...prev, "entity-seq"]
         ));
         setIsSavingEntitySequence(false);
-        setKbDialogMessage(
+        openKnowledgeBaseResultDialog(
             "1 number of entity-seqs of 1 root node, have been added to knowledge base as ground-truth!"
         );
     }, [canAddToKnowledgeBase, isSavingEntitySequence, setHoveredNode, treeData]);
@@ -1591,7 +1893,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setBatchProcessingProgress(100);
         setBatchProcessingStepLabel(null);
         setIsBatchProcessingAllSequences(false);
-        setKbDialogMessage(
+        openKnowledgeBaseResultDialog(
             `status seq: 49, action seq: 66, entity seq: 134 from ${resolvedTotalSequenceCount} log sequences are added to the knowledge base!`
         );
     }, [canBatchProcessAllTrainingSequences, resolvedTotalSequenceCount]);
@@ -1631,7 +1933,10 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     };
 
     const dismissKnowledgeBaseDialog = () => {
-        setKbDialogMessage(null);
+        if (resultDialog?.title === "Anomaly Detected! Krone Early Stopped.") {
+            setHasAcknowledgedDetectResult(true);
+        }
+        setResultDialog(null);
     };
 
     const handleExplanationModalMouseMove = useCallback((event: MouseEvent) => {
@@ -1813,13 +2118,13 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                                             {step.id === "decompose"
                                                                 ? "Decomposing..."
                                                                 : step.id === "detect"
-                                                                    ? "Detecting..."
-                                                                    : "Explaining..."}
+                                                                    ? step.label
+                                                                    : "LLM Is thinking..."}
                                                         </>
                                                     ) : (
                                                         <>
                                                             {isDone ? "✓" : ""}
-                                                            {(step.id === "detect" || step.id === "explain") && <Sparkles size={12} />}
+                                                            {step.id === "explain" && <Sparkles size={12} />}
                                                             {step.label}
                                                         </>
                                                     )}
@@ -1901,91 +2206,140 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                     );
                                 })}
                                 </div>
+                                {dynamicStepDescription && (
+                                    <p
+                                        style={{
+                                            margin: 0,
+                                            fontSize: "var(--font-sm)",
+                                            color: "var(--text-label)",
+                                            textAlign: "left",
+                                            maxWidth: 980,
+                                        }}
+                                    >
+                                        {dynamicStepDescription}
+                                    </p>
+                                )}
                             </div>
                             {showDualSectionHeader && (
-                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, width: "100%" }}>
-                                    {batchProcessingSectionTitle && (
-                                        <div
-                                            style={{
-                                                fontSize: "var(--font-lg)",
-                                                fontWeight: 700,
-                                                color: "var(--table-header-text)",
-                                                textAlign: "left",
-                                            }}
-                                        >
-                                            {batchProcessingSectionTitle}
-                                        </div>
-                                    )}
-                                    {batchProcessingButtonLabel && (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    void runBatchProcessAllTrainingSequences();
-                                                }}
-                                                disabled={!canBatchProcessAllTrainingSequences}
+                                <>
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, width: "100%" }}>
+                                        {batchProcessingSectionTitle && (
+                                            <div
                                                 style={{
-                                                    height: 32,
-                                                    padding: "0 14px",
-                                                    borderRadius: 999,
-                                                    border: canBatchProcessAllTrainingSequences ? "1px solid #cbd5e1" : "1px solid #e2e8f0",
-                                                    background: canBatchProcessAllTrainingSequences ? "#fff" : "#f8fafc",
-                                                    color: canBatchProcessAllTrainingSequences ? "#334155" : "#94a3b8",
-                                                    fontSize: "var(--font-sm)",
-                                                    fontWeight: 400,
-                                                    cursor: canBatchProcessAllTrainingSequences ? "pointer" : "not-allowed",
-                                                    opacity: canBatchProcessAllTrainingSequences ? 1 : 0.7,
-                                                    whiteSpace: "nowrap",
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    gap: 6,
+                                                    fontSize: "var(--font-lg)",
+                                                    fontWeight: 700,
+                                                    color: "var(--table-header-text)",
+                                                    textAlign: "left",
                                                 }}
                                             >
-                                                {isBatchProcessingAllSequences ? (
-                                                    <>
-                                                        <Loader2 size={13} className="animate-spin" />
-                                                        Processing...
-                                                    </>
-                                                ) : (
-                                                    batchProcessingButtonLabel
-                                                )}
-                                            </button>
-                                            {isBatchProcessingAllSequences && (
-                                                <div
+                                                {batchProcessingSectionTitle}
+                                            </div>
+                                        )}
+                                        {batchProcessingButtonLabel && (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        void runBatchProcessAllTrainingSequences();
+                                                    }}
+                                                    disabled={!canBatchProcessAllTrainingSequences}
                                                     style={{
-                                                        width: "min(520px, 100%)",
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        gap: 8,
-                                                        paddingTop: 2,
+                                                        height: 32,
+                                                        padding: "0 14px",
+                                                        borderRadius: 999,
+                                                        border: canBatchProcessAllTrainingSequences ? "1px solid #cbd5e1" : "1px solid #e2e8f0",
+                                                        background: canBatchProcessAllTrainingSequences ? "#fff" : "#f8fafc",
+                                                        color: canBatchProcessAllTrainingSequences ? "#334155" : "#94a3b8",
+                                                        fontSize: "var(--font-sm)",
+                                                        fontWeight: 400,
+                                                        cursor: canBatchProcessAllTrainingSequences ? "pointer" : "not-allowed",
+                                                        opacity: canBatchProcessAllTrainingSequences ? 1 : 0.7,
+                                                        whiteSpace: "nowrap",
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        gap: 6,
                                                     }}
                                                 >
-                                                    <div style={{ color: "#475569", fontSize: "var(--font-sm)" }}>
-                                                        {batchProcessingStepLabel}
-                                                    </div>
+                                                    {isBatchProcessingAllSequences ? (
+                                                        <>
+                                                            <Loader2 size={13} className="animate-spin" />
+                                                            Processing...
+                                                        </>
+                                                    ) : (
+                                                        batchProcessingButtonLabel
+                                                    )}
+                                                </button>
+                                                {isBatchProcessingAllSequences && (
                                                     <div
                                                         style={{
-                                                            width: "100%",
-                                                            height: 10,
-                                                            borderRadius: 999,
-                                                            background: "#e2e8f0",
-                                                            overflow: "hidden",
+                                                            width: "min(520px, 100%)",
+                                                            display: "flex",
+                                                            flexDirection: "column",
+                                                            gap: 8,
+                                                            paddingTop: 2,
                                                         }}
                                                     >
+                                                        <div style={{ color: "#475569", fontSize: "var(--font-sm)" }}>
+                                                            {batchProcessingStepLabel}
+                                                        </div>
                                                         <div
                                                             style={{
-                                                                width: `${batchProcessingProgress}%`,
-                                                                height: "100%",
+                                                                width: "100%",
+                                                                height: 10,
                                                                 borderRadius: 999,
-                                                                background: "linear-gradient(90deg, #22c55e 0%, #16a34a 100%)",
-                                                                transition: "width 240ms ease",
+                                                                background: "#e2e8f0",
+                                                                overflow: "hidden",
                                                             }}
-                                                        />
+                                                        >
+                                                            <div
+                                                                style={{
+                                                                    width: `${batchProcessingProgress}%`,
+                                                                    height: "100%",
+                                                                    borderRadius: 999,
+                                                                    background: "linear-gradient(90deg, #22c55e 0%, #16a34a 100%)",
+                                                                    transition: "width 240ms ease",
+                                                                }}
+                                                            />
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                            {isDetecting && detectStepLabel && !hideDetectAndExplainSteps && (
+                                <div
+                                    style={{
+                                        width: "min(520px, 100%)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                        paddingTop: 2,
+                                    }}
+                                >
+                                    <div style={{ color: "#475569", fontSize: "var(--font-sm)" }}>
+                                        {detectStepLabel}
+                                    </div>
+                                    <div
+                                        style={{
+                                            width: "100%",
+                                            height: 10,
+                                            borderRadius: 999,
+                                            background: "#e2e8f0",
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: `${detectProgress}%`,
+                                                height: "100%",
+                                                borderRadius: 999,
+                                                background: "linear-gradient(90deg, #f59e0b 0%, #f97316 100%)",
+                                                transition: "width 240ms ease",
+                                            }}
+                                        />
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -2002,51 +2356,6 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                     borderBottom: "none",
                                 }}
                             >
-                                <div
-                                    style={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "space-between",
-                                        flexWrap: "wrap",
-                                        gap: 8,
-                                        marginBottom: 4,
-                                    }}
-                                >
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                        <span
-                                            style={{
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                padding: "2px 10px",
-                                                borderRadius: 999,
-                                                border: "1px solid #fecaca",
-                                                background: "#fef2f2",
-                                                color: "#b91c1c",
-                                                fontSize: "var(--font-sm)",
-                                            }}
-                                        >
-                                            🚨 Abnormal: {abnormalSequenceCount}
-                                        </span>
-                                        <span
-                                            style={{
-                                                display: "inline-flex",
-                                                alignItems: "center",
-                                                padding: "2px 10px",
-                                                borderRadius: 999,
-                                                border: "1px solid #bbf7d0",
-                                                background: "#f0fdf4",
-                                                color: "#166534",
-                                                fontSize: "var(--font-sm)",
-                                            }}
-                                        >
-                                            ✅ Normal: {resolvedTotalSequenceCount}
-                                        </span>
-                                        <span style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>
-                                            Total: {resolvedTotalSequenceCount}
-                                        </span>
-                                    </div>
-                                </div>
                                 <label
                                     style={{
                                         display: "grid",
@@ -2107,12 +2416,15 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                                 Showing first {resolvedVisibleSequenceCount} only
                                             </span>
                                         )}
+                                        <span style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>
+                                            Total: {resolvedTotalSequenceCount}
+                                        </span>
                                     </div>
                                 </label>
                             </div>
                         )}
 
-                        {showDetected && (
+                        {showDetected && (anomalyLevel !== "Abnormal" || hasAcknowledgedDetectResult) && (
                             <div style={{ width: "100%", paddingTop: 10, display: "grid", rowGap: 6 }}>
                             <div
                                 style={{
@@ -2182,17 +2494,6 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                             >
                                                 {anomalySegmentLinkText}
                                             </a>
-                                        </h3>
-                                    </div>
-                                </div>
-                            )}
-                            {showDetected && anomalyLevel === "Abnormal" && isExplaining && (
-                                <div style={detailRowStyle}>
-                                    <span></span>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                        <Loader2 size={16} className="animate-spin text-[#1f3f8f]" />
-                                        <h3 style={{ ...detailValueStyle, color: "#1f3f8f" }}>
-                                            LLM Thinking...
                                         </h3>
                                     </div>
                                 </div>
@@ -2343,7 +2644,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         }}
                     >
                         <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
-                            Anomaly Explanation (LLM)
+                            LLM verification result
                         </span>
                         <button
                             type="button"
@@ -2418,6 +2719,34 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                             <span style={{ color: "var(--text-label)", fontWeight: 600 }}>Parent Node</span>
                             <span>{anomalyParentNodeText}</span>
                         </div>
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "140px minmax(0, 1fr)",
+                                columnGap: 10,
+                                alignItems: "start",
+                                marginBottom: 12,
+                                paddingBottom: 10,
+                                borderBottom: "1px solid #edf1f5",
+                            }}
+                        >
+                            <span style={{ color: "var(--text-label)", fontWeight: 600 }}>{kroneLevelSeqLabel}</span>
+                            <span>{kroneLevelSeqText}</span>
+                        </div>
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: "140px minmax(0, 1fr)",
+                                columnGap: 10,
+                                alignItems: "start",
+                                marginBottom: 12,
+                                paddingBottom: 10,
+                                borderBottom: "1px solid #edf1f5",
+                            }}
+                        >
+                            <span style={{ color: "var(--text-label)", fontWeight: 600 }}>LLM (ChatGPT-3.5) verification result</span>
+                            <span style={{ color: "#dc2626", fontWeight: 600 }}>Abnormal</span>
+                        </div>
                         <div style={{ color: "var(--text-label)", fontWeight: 600, marginBottom: 8 }}>
                             LLM (ChatGPT-3.5) Explanation
                         </div>
@@ -2470,11 +2799,11 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                     />
                 </div>
             )}
-            {kbDialogMessage && (
+            {resultDialog && (
                 <div
                     role="dialog"
                     aria-modal="true"
-                    aria-label="Knowledge base save result"
+                    aria-label={resultDialog.ariaLabel}
                     style={{
                         position: "fixed",
                         inset: 0,
@@ -2517,17 +2846,17 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                         borderRadius: 999,
                                         alignItems: "center",
                                         justifyContent: "center",
-                                        background: "#16a34a",
-                                        color: "#fff",
+                                        background: resultDialog.iconBackground,
+                                        color: resultDialog.iconColor,
                                         fontSize: 14,
                                         fontWeight: 700,
                                         flex: "0 0 auto",
                                     }}
                                 >
-                                    ✓
+                                    {resultDialog.icon}
                                 </span>
                                 <span style={{ fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
-                                    Added to Knowledge Base
+                                    {resultDialog.title}
                                 </span>
                             </div>
                             <button
@@ -2556,7 +2885,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                 textAlign: "left",
                             }}
                         >
-                            {kbDialogMessage}
+                            {resultDialog.content}
                         </div>
                         <div
                             style={{
@@ -2572,9 +2901,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                     height: 34,
                                     padding: "0 14px",
                                     borderRadius: 8,
-                                    border: "1px solid #86efac",
-                                    background: "#f0fdf4",
-                                    color: "#166534",
+                                    border: `1px solid ${resultDialog.buttonBorder}`,
+                                    background: resultDialog.buttonBackground,
+                                    color: resultDialog.buttonColor,
                                     fontSize: "var(--font-sm)",
                                     fontWeight: 600,
                                     cursor: "pointer",
