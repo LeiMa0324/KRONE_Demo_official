@@ -223,6 +223,18 @@ export const VisualizeTree: React.FC = () => {
                 >
                   Load
                 </button>
+                {isTemplatesLoaded && (
+                  <span
+                    style={{
+                      color: "#0369a1",
+                      fontSize: "var(--font-sm)",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Loaded {templateRows.length} templates
+                  </span>
+                )}
               </div>
             )}
           </div>
