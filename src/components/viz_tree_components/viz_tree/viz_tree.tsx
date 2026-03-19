@@ -37,7 +37,7 @@ const TEMPLATE_COLUMN_GAP = 48;
 const HEADER_FONT_SIZE = 15;
 const HEADER_LABELS = {
   status: "Status",
-  templateId: "Template ID",
+  templateId: "Log key",
   template: "Templates",
 } as const;
 
@@ -314,7 +314,7 @@ export const VizTree: React.FC<VizTreeProps> = ({
               textAlign: "left",
             }}
           >
-            Template ID
+            Log key
           </span>
           <span
             style={{

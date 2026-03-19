@@ -326,7 +326,7 @@ export const VisualizeTree: React.FC = () => {
                 }}
               >
                 <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)" }}>
-                  Template ID
+                  Log key
                 </div>
                 <div style={{ padding: "var(--table-cell-py) var(--table-cell-px)", fontSize: "var(--font-sm)", fontWeight: 700, color: "var(--table-header-text)", textAlign: "left" }}>
                   Templates
