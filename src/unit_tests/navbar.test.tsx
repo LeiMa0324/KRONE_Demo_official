@@ -15,6 +15,6 @@ describe("Navbar Component", () => {
     expect(screen.getByText("File Upload")).toBeInTheDocument();
     expect(screen.getByText("Visualize Tree")).toBeInTheDocument();
     expect(screen.getByText("Log Table")).toBeInTheDocument();
-    expect(screen.getByText("About")).toBeInTheDocument();
+    expect(screen.getByText("Team")).toBeInTheDocument();
   });
 });

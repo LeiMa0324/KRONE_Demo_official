@@ -227,7 +227,7 @@ export const VisualizeTree: React.FC = () => {
             )}
           </div>
         </div>
-        <div style={{ flex: "1 1 auto", position: "relative", overflow: "hidden" }}>
+        <div style={{ flex: "1 1 auto", position: "relative", overflow: "hidden", minHeight: 0 }}>
         {showTreeView ? (
           <div
             style={{
@@ -281,6 +281,8 @@ export const VisualizeTree: React.FC = () => {
               display: "flex",
               flexDirection: "column",
               alignItems: "stretch",
+              height: "100%",
+              minHeight: 0,
               padding: "20px",
               boxSizing: "border-box",
               overflow: "hidden",
@@ -292,6 +294,7 @@ export const VisualizeTree: React.FC = () => {
             <div
               style={{
                 flex: "1 1 auto",
+                minHeight: 0,
                 overflow: "auto",
                 border: "1px solid #edf1f5",
                 borderRadius: 12,

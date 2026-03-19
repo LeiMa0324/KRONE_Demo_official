@@ -22,7 +22,7 @@ const navLinks = [
     { path: "/training-process", label: "Training Process" },
     { path: "/sequence-tree", label: "Log Anomaly Detection" },
     { path: "/knowledge-base", label: "Knowledge Base" },
-    { path: "/about", label: "About" },
+    { path: "/about", label: "Team" },
 ];
 
 //NAVAR COMPONENT - Iterates through navLinks and displays them as fixed buttons on top of screen with BUTTON_STYLE styling
