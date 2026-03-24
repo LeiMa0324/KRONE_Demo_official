@@ -1520,6 +1520,19 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const canAddToKnowledgeBase = hideDetectAndExplainSteps
         ? !!selectedSeqId && showDecomposed
         : showDetected && anomalyLevel === "Abnormal" && anomalyLogKeysForSeq.length > 0;
+    const trainingProgressInfo = (() => {
+        if (!hideDetectAndExplainSteps) return null;
+        if (isSavingEntitySequence || savedKnowledgeBaseActionIds.includes("entity-seq")) {
+            return { label: "Entity level storage", progress: 100 };
+        }
+        if (isSavingActionSequence || savedKnowledgeBaseActionIds.includes("action-seq")) {
+            return { label: "Action level storage", progress: 66 };
+        }
+        if (isSavingStatusSequence || savedKnowledgeBaseActionIds.includes("status-seq")) {
+            return { label: "Status level storage", progress: 33 };
+        }
+        return null;
+    })();
     const resolvedKnowledgeBaseButtons = knowledgeBaseActionButtons?.length
         ? knowledgeBaseActionButtons
         : [{ id: "default", label: knowledgeBaseActionLabel, toastMessage: "abnormal segment has been added to knowledge base!" }];
@@ -2442,6 +2455,40 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                         <div
                                             style={{
                                                 width: `${detectProgress}%`,
+                                                height: "100%",
+                                                borderRadius: 999,
+                                                background: "linear-gradient(90deg, #f59e0b 0%, #f97316 100%)",
+                                                transition: "width 240ms ease",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                            {trainingProgressInfo && (
+                                <div
+                                    style={{
+                                        width: "min(520px, 100%)",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                        paddingTop: 2,
+                                    }}
+                                >
+                                    <div style={{ color: "#475569", fontSize: "var(--font-sm)" }}>
+                                        {trainingProgressInfo.label}
+                                    </div>
+                                    <div
+                                        style={{
+                                            width: "100%",
+                                            height: 10,
+                                            borderRadius: 999,
+                                            background: "#e2e8f0",
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: `${trainingProgressInfo.progress}%`,
                                                 height: "100%",
                                                 borderRadius: 999,
                                                 background: "linear-gradient(90deg, #f59e0b 0%, #f97316 100%)",
