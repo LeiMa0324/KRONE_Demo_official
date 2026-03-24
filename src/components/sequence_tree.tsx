@@ -354,6 +354,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const [completedKnowledgeBaseEntityPaths, setCompletedKnowledgeBaseEntityPaths] = useState<string[]>([]);
     const [isActiveKnowledgeBaseRoot, setIsActiveKnowledgeBaseRoot] = useState(false);
     const [isCompletedKnowledgeBaseRoot, setIsCompletedKnowledgeBaseRoot] = useState(false);
+    const [abnormalKnowledgeBaseActionPath, setAbnormalKnowledgeBaseActionPath] = useState<string | null>(null);
+    const [abnormalKnowledgeBaseEntityPath, setAbnormalKnowledgeBaseEntityPath] = useState<string | null>(null);
+    const [isAbnormalKnowledgeBaseRoot, setIsAbnormalKnowledgeBaseRoot] = useState(false);
     const [isSavingStatusSequence, setIsSavingStatusSequence] = useState(false);
     const [isSavingActionSequence, setIsSavingActionSequence] = useState(false);
     const [isSavingEntitySequence, setIsSavingEntitySequence] = useState(false);
@@ -407,6 +410,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setDetectStepLabel(null);
         setDetectProgress(0);
         setHasAcknowledgedDetectResult(false);
+        setAbnormalKnowledgeBaseActionPath(null);
+        setAbnormalKnowledgeBaseEntityPath(null);
+        setIsAbnormalKnowledgeBaseRoot(false);
     };
 
     const resetDecomposingState = () => {
@@ -426,6 +432,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setCompletedKnowledgeBaseEntityPaths([]);
         setIsActiveKnowledgeBaseRoot(false);
         setIsCompletedKnowledgeBaseRoot(false);
+        setAbnormalKnowledgeBaseActionPath(null);
+        setAbnormalKnowledgeBaseEntityPath(null);
+        setIsAbnormalKnowledgeBaseRoot(false);
         setIsSavingStatusSequence(false);
         setIsSavingActionSequence(false);
         setIsSavingEntitySequence(false);
@@ -934,11 +943,14 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                 const pathKey = (d.data.indexPath || []).join(".");
                 const isActiveKnowledgeBaseRootNode = d.depth === 0 && isActiveKnowledgeBaseRoot;
                 const isCompletedKnowledgeBaseRootNode = d.depth === 0 && isCompletedKnowledgeBaseRoot;
+                const isAbnormalKnowledgeBaseRootNode = d.depth === 0 && isAbnormalKnowledgeBaseRoot;
                 const isActiveKnowledgeBaseEntity = d.depth === 1 && pathKey === activeKnowledgeBaseEntityPath;
                 const isCompletedKnowledgeBaseEntity = d.depth === 1 && completedEntityPathSet.has(pathKey);
+                const isAbnormalKnowledgeBaseEntity = d.depth === 1 && pathKey === abnormalKnowledgeBaseEntityPath;
                 const isActiveKnowledgeBaseAction = d.depth === 2 && pathKey === activeKnowledgeBaseActionPath;
                 const isActiveKnowledgeBaseEntityAction = d.depth === 2 && activeEntityActionPathSet.has(pathKey);
                 const isCompletedKnowledgeBaseAction = d.depth === 2 && completedActionPathSet.has(pathKey);
+                const isAbnormalKnowledgeBaseAction = d.depth === 2 && pathKey === abnormalKnowledgeBaseActionPath;
                 const isActiveKnowledgeBaseStatus = d.depth === 3 && typeof d.data.lineNumber === "number" && activeActionLineNumbers.has(d.data.lineNumber);
                 // Calculate the width of the node label and adjust the rectangle accordingly
                 if (d.depth === 0 && showDecomposed) {
@@ -1105,6 +1117,28 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .text("✓");
                 }
 
+                if (d.depth === 2 && isAbnormalKnowledgeBaseAction) {
+                    const badgeSize = 16;
+                    const badgeX = bbox.x + bbox.width + padding + 10;
+                    const badgeY = bbox.y + bbox.height / 2 + 1;
+                    nodeGroup.append("circle")
+                        .attr("cx", badgeX)
+                        .attr("cy", badgeY)
+                        .attr("r", badgeSize / 2)
+                        .attr("fill", "#ef4444")
+                        .attr("stroke", "#dc2626")
+                        .attr("stroke-width", 1.5);
+                    nodeGroup.append("text")
+                        .attr("x", badgeX)
+                        .attr("y", badgeY + 0.5)
+                        .attr("alignment-baseline", "middle")
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("font-weight", 700)
+                        .attr("fill", "#fff")
+                        .text("!");
+                }
+
                 if (d.depth === 1 && isCompletedKnowledgeBaseEntity) {
                     const badgeSize = 16;
                     const badgeX = bbox.x + bbox.width + padding + 10;
@@ -1127,6 +1161,28 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .text("✓");
                 }
 
+                if (d.depth === 1 && isAbnormalKnowledgeBaseEntity) {
+                    const badgeSize = 16;
+                    const badgeX = bbox.x + bbox.width + padding + 10;
+                    const badgeY = bbox.y + bbox.height / 2 + 1;
+                    nodeGroup.append("circle")
+                        .attr("cx", badgeX)
+                        .attr("cy", badgeY)
+                        .attr("r", badgeSize / 2)
+                        .attr("fill", "#ef4444")
+                        .attr("stroke", "#dc2626")
+                        .attr("stroke-width", 1.5);
+                    nodeGroup.append("text")
+                        .attr("x", badgeX)
+                        .attr("y", badgeY + 0.5)
+                        .attr("alignment-baseline", "middle")
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("font-weight", 700)
+                        .attr("fill", "#fff")
+                        .text("!");
+                }
+
                 if (d.depth === 0 && isCompletedKnowledgeBaseRootNode) {
                     const badgeSize = 16;
                     const badgeX = bbox.x + bbox.width + padding + 10;
@@ -1147,6 +1203,28 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                         .attr("font-weight", 700)
                         .attr("fill", "#fff")
                         .text("✓");
+                }
+
+                if (d.depth === 0 && isAbnormalKnowledgeBaseRootNode) {
+                    const badgeSize = 16;
+                    const badgeX = bbox.x + bbox.width + padding + 10;
+                    const badgeY = bbox.y + bbox.height / 2 + 1;
+                    nodeGroup.append("circle")
+                        .attr("cx", badgeX)
+                        .attr("cy", badgeY)
+                        .attr("r", badgeSize / 2)
+                        .attr("fill", "#ef4444")
+                        .attr("stroke", "#dc2626")
+                        .attr("stroke-width", 1.5);
+                    nodeGroup.append("text")
+                        .attr("x", badgeX)
+                        .attr("y", badgeY + 0.5)
+                        .attr("alignment-baseline", "middle")
+                        .attr("text-anchor", "middle")
+                        .attr("font-size", 10)
+                        .attr("font-weight", 700)
+                        .attr("fill", "#fff")
+                        .text("!");
                 }
             });
 
@@ -1271,6 +1349,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         completedKnowledgeBaseEntityPaths,
         isActiveKnowledgeBaseRoot,
         isCompletedKnowledgeBaseRoot,
+        abnormalKnowledgeBaseActionPath,
+        abnormalKnowledgeBaseEntityPath,
+        isAbnormalKnowledgeBaseRoot,
         isSavingStatusSequence,
     ]);
 
@@ -1350,6 +1431,10 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         const levelRaw = String(anomalyRow?.anomaly_level ?? "").trim();
         if (!levelRaw) return "-";
         return `${levelRaw.charAt(0).toUpperCase()}${levelRaw.slice(1).toLowerCase()}`;
+    })();
+    const detectResultText = (() => {
+        if (!showDetected || anomalyLevel !== "Abnormal" || anomalyLevelText === "-") return null;
+        return `${anomalyLevelText} Anomaly Detected!`;
     })();
     const anomalyParentNodeText = (() => {
         if (!selectedDecomp || anomalyStartLine === null || !anomalyRow?.anomaly_level) return "-";
@@ -1594,14 +1679,14 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         detectAnimationRunRef.current = currentRunId;
         setIsDetecting(true);
         setDetectStepLabel("Status level detection");
-        setDetectProgress(0);
+        setDetectProgress(33);
 
-        const finalizeDetect = (detected: boolean) => {
+        const finalizeDetect = (detected: boolean, finalStepLabel: string, finalProgress: number) => {
             if (detectAnimationRunRef.current !== currentRunId) return;
             setIsDetecting(false);
             setShowDetected(true);
-            setDetectStepLabel(null);
-            setDetectProgress(0);
+            setDetectStepLabel(finalStepLabel);
+            setDetectProgress(finalProgress);
             setActiveKnowledgeBaseActionPath(null);
             setActiveKnowledgeBaseEntityPath(null);
             setIsActiveKnowledgeBaseRoot(false);
@@ -1630,7 +1715,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                     actionSequence.lineNumbers.some((lineNumber) => anomalyLineNumberSet.has(lineNumber));
 
                 if (hasStatusLevelAnomaly) {
-                    finalizeDetect(true);
+                    setAbnormalKnowledgeBaseActionPath(actionSequence.pathKey);
+                    finalizeDetect(true, "Status level detection", 33);
                     return;
                 }
 
@@ -1642,7 +1728,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
 
             if (detectAnimationRunRef.current !== currentRunId) return;
             setActiveKnowledgeBaseActionPath(null);
-            setDetectProgress(33);
+            setDetectProgress(66);
             setDetectStepLabel("Action level detection");
 
             for (const entitySequence of orderedEntitySequences) {
@@ -1661,7 +1747,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                     entitySequence.lineNumbers.some((lineNumber) => anomalyLineNumberSet.has(lineNumber));
 
                 if (hasActionLevelAnomaly) {
-                    finalizeDetect(true);
+                    setAbnormalKnowledgeBaseEntityPath(entitySequence.pathKey);
+                    finalizeDetect(true, "Action level detection", 66);
                     return;
                 }
 
@@ -1680,7 +1767,8 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             if (detectAnimationRunRef.current !== currentRunId) return;
 
             if (anomalyRow?.anomaly_level === "entity") {
-                finalizeDetect(true);
+                setIsAbnormalKnowledgeBaseRoot(true);
+                finalizeDetect(true, "Entity level detection", 100);
                 return;
             }
 
@@ -1688,7 +1776,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             setIsCompletedKnowledgeBaseRoot(true);
             setDetectProgress(100);
             await waitForKnowledgeBaseAnimation(180);
-            finalizeDetect(false);
+            finalizeDetect(false, "No anomaly detected", 100);
         }, 220);
     };
 
@@ -2308,7 +2396,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                     </div>
                                 </>
                             )}
-                            {isDetecting && detectStepLabel && !hideDetectAndExplainSteps && (
+                            {(isDetecting || showDetected) && detectStepLabel && !hideDetectAndExplainSteps && (
                                 <div
                                     style={{
                                         width: "min(520px, 100%)",
@@ -2318,8 +2406,29 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                         paddingTop: 2,
                                     }}
                                 >
-                                    <div style={{ color: "#475569", fontSize: "var(--font-sm)" }}>
-                                        {detectStepLabel}
+                                    <div
+                                        style={{
+                                            color: "#475569",
+                                            fontSize: "var(--font-sm)",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 12,
+                                            flexWrap: "wrap",
+                                        }}
+                                    >
+                                        <span>{detectStepLabel}</span>
+                                        {detectResultText && (
+                                            <span
+                                                style={{
+                                                    color: "#b91c1c",
+                                                    fontWeight: 600,
+                                                    textAlign: "right",
+                                                }}
+                                            >
+                                                {detectResultText}
+                                            </span>
+                                        )}
                                     </div>
                                     <div
                                         style={{
