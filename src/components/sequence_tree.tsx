@@ -330,6 +330,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     dynamicStepDescriptions,
 }) => {
     const svgRef = useRef<SVGSVGElement | null>(null);
+    const treeRootRef = useRef<HTMLDivElement | null>(null);
     const sequenceSelectRef = useRef<HTMLSelectElement | null>(null);
     const [treeData, setTreeData] = useState<TreeNode | null>(null);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -377,6 +378,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const kbToastRemoveTimerRef = useRef<number | null>(null);
     const knowledgeBaseAnimationRunRef = useRef(0);
     const detectAnimationRunRef = useRef(0);
+    const stickyPanelRef = useRef<HTMLDivElement | null>(null);
     const [columnHeaderPos, setColumnHeaderPos] = useState<{
         entityX: number;
         actionX: number;
@@ -1539,9 +1541,6 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     const orderedActionSequences = useMemo(() => collectOrderedActionSequences(treeData), [treeData]);
     const orderedEntitySequences = useMemo(() => collectOrderedEntitySequences(treeData), [treeData]);
     const canBatchProcessAllTrainingSequences =
-        !!selectedSeqId &&
-        showDecomposed &&
-        resolvedKnowledgeBaseButtons.every((actionButton) => savedKnowledgeBaseActionIds.includes(actionButton.id)) &&
         !isSavingStatusSequence &&
         !isSavingActionSequence &&
         !isSavingEntitySequence &&
@@ -1718,9 +1717,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                 const firstLineNumber = actionSequence.lineNumbers[0];
                 if (typeof firstLineNumber === "number") {
                     const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
-                    rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                    scrollSvgTargetIntoView(rowTarget);
                 }
-                await waitForKnowledgeBaseAnimation(420);
+                await waitForKnowledgeBaseAnimation(240);
                 if (detectAnimationRunRef.current !== currentRunId) return;
 
                 const hasStatusLevelAnomaly =
@@ -1736,7 +1735,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                 setCompletedKnowledgeBaseActionPaths((prev) =>
                     prev.includes(actionSequence.pathKey) ? prev : [...prev, actionSequence.pathKey]
                 );
-                await waitForKnowledgeBaseAnimation(180);
+                await waitForKnowledgeBaseAnimation(90);
             }
 
             if (detectAnimationRunRef.current !== currentRunId) return;
@@ -1750,9 +1749,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                 const firstLineNumber = entitySequence.lineNumbers[0];
                 if (typeof firstLineNumber === "number") {
                     const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
-                    rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                    scrollSvgTargetIntoView(rowTarget);
                 }
-                await waitForKnowledgeBaseAnimation(420);
+                await waitForKnowledgeBaseAnimation(240);
                 if (detectAnimationRunRef.current !== currentRunId) return;
 
                 const hasActionLevelAnomaly =
@@ -1768,7 +1767,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                 setCompletedKnowledgeBaseEntityPaths((prev) =>
                     prev.includes(entitySequence.pathKey) ? prev : [...prev, entitySequence.pathKey]
                 );
-                await waitForKnowledgeBaseAnimation(180);
+                await waitForKnowledgeBaseAnimation(90);
             }
 
             if (detectAnimationRunRef.current !== currentRunId) return;
@@ -1776,7 +1775,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             setDetectProgress(66);
             setDetectStepLabel("Entity level detection");
             setIsActiveKnowledgeBaseRoot(true);
-            await waitForKnowledgeBaseAnimation(520);
+            await waitForKnowledgeBaseAnimation(300);
             if (detectAnimationRunRef.current !== currentRunId) return;
 
             if (anomalyRow?.anomaly_level === "entity") {
@@ -1788,9 +1787,9 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             setIsActiveKnowledgeBaseRoot(false);
             setIsCompletedKnowledgeBaseRoot(true);
             setDetectProgress(100);
-            await waitForKnowledgeBaseAnimation(180);
+            await waitForKnowledgeBaseAnimation(90);
             finalizeDetect(false, "No anomaly detected", 100);
-        }, 220);
+        }, 90);
     };
 
     const runExplain = () => {
@@ -1810,15 +1809,41 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         setHoveredNode?.(null);
         const selector = `text[data-line-number="${anomalyStartLine}"]`;
         const target = svgRef.current?.querySelector(selector) as SVGGraphicsElement | null;
-        if (target) {
-            target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-        }
+        scrollSvgTargetIntoView(target);
     };
 
     const waitForKnowledgeBaseAnimation = (ms: number) =>
         new Promise<void>((resolve) => {
             window.setTimeout(resolve, ms);
         });
+
+    const scrollSvgTargetIntoView = useCallback((target: SVGGraphicsElement | null) => {
+        if (!target) return;
+        const findScrollParent = (element: HTMLElement | null) => {
+            let current = element?.parentElement ?? null;
+            while (current) {
+                const style = window.getComputedStyle(current);
+                if (/(auto|scroll)/.test(`${style.overflowY}${style.overflow}`) && current.scrollHeight > current.clientHeight) {
+                    return current;
+                }
+                current = current.parentElement;
+            }
+            return null;
+        };
+        const scrollParent = findScrollParent(treeRootRef.current);
+        const stickyPanelHeight = stickyPanelRef.current?.getBoundingClientRect().height ?? 0;
+        const targetRect = target.getBoundingClientRect();
+        const desiredTop = stickyPanelHeight + 28;
+        if (scrollParent) {
+            const parentRect = scrollParent.getBoundingClientRect();
+            scrollParent.scrollTo({
+                top: scrollParent.scrollTop + targetRect.top - parentRect.top - desiredTop,
+                behavior: "smooth",
+            });
+            return;
+        }
+        window.scrollTo({ top: window.scrollY + targetRect.top - desiredTop, behavior: "smooth" });
+    }, []);
 
     const openKnowledgeBaseResultDialog = (message: string) => {
         setResultDialog({
@@ -1890,14 +1915,14 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             const firstLineNumber = actionSequence.lineNumbers[0];
             if (typeof firstLineNumber === "number") {
                 const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
-                rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                scrollSvgTargetIntoView(rowTarget);
             }
-            await waitForKnowledgeBaseAnimation(550);
+            await waitForKnowledgeBaseAnimation(240);
             if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
             setCompletedKnowledgeBaseActionPaths((prev) =>
                 prev.includes(actionSequence.pathKey) ? prev : [...prev, actionSequence.pathKey]
             );
-            await waitForKnowledgeBaseAnimation(260);
+            await waitForKnowledgeBaseAnimation(90);
         }
 
         if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
@@ -1909,7 +1934,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         openKnowledgeBaseResultDialog(
             `${orderedActionSequences.length} number of status-seqs of ${orderedActionSequences.length} actions, have been added to knowledge base as ground-truth!`
         );
-    }, [canAddToKnowledgeBase, isSavingStatusSequence, orderedActionSequences, setHoveredNode]);
+    }, [canAddToKnowledgeBase, isSavingStatusSequence, orderedActionSequences, scrollSvgTargetIntoView, setHoveredNode]);
 
     const runActionSequenceKnowledgeBaseSave = useCallback(async () => {
         if (!canAddToKnowledgeBase || isSavingActionSequence || !orderedEntitySequences.length) return;
@@ -1928,14 +1953,14 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
             const firstLineNumber = entitySequence.lineNumbers[0];
             if (typeof firstLineNumber === "number") {
                 const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
-                rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+                scrollSvgTargetIntoView(rowTarget);
             }
-            await waitForKnowledgeBaseAnimation(550);
+            await waitForKnowledgeBaseAnimation(240);
             if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
             setCompletedKnowledgeBaseEntityPaths((prev) =>
                 prev.includes(entitySequence.pathKey) ? prev : [...prev, entitySequence.pathKey]
             );
-            await waitForKnowledgeBaseAnimation(260);
+            await waitForKnowledgeBaseAnimation(90);
         }
 
         if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
@@ -1947,7 +1972,7 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         openKnowledgeBaseResultDialog(
             `${orderedEntitySequences.length} number of action-seqs of ${orderedEntitySequences.length} entities, have been added to knowledge base as ground-truth!`
         );
-    }, [canAddToKnowledgeBase, isSavingActionSequence, orderedEntitySequences, setHoveredNode]);
+    }, [canAddToKnowledgeBase, isSavingActionSequence, orderedEntitySequences, scrollSvgTargetIntoView, setHoveredNode]);
 
     const runEntitySequenceKnowledgeBaseSave = useCallback(async () => {
         if (!canAddToKnowledgeBase || isSavingEntitySequence || !treeData) return;
@@ -1963,10 +1988,10 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         const firstLineNumber = collectOrderedActionSequences(treeData)[0]?.lineNumbers[0];
         if (typeof firstLineNumber === "number") {
             const rowTarget = svgRef.current?.querySelector(`text[data-line-number="${firstLineNumber}"]`) as SVGGraphicsElement | null;
-            rowTarget?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            scrollSvgTargetIntoView(rowTarget);
         }
 
-        await waitForKnowledgeBaseAnimation(650);
+        await waitForKnowledgeBaseAnimation(300);
         if (knowledgeBaseAnimationRunRef.current !== currentRunId) return;
         setIsActiveKnowledgeBaseRoot(false);
         setIsCompletedKnowledgeBaseRoot(true);
@@ -1977,20 +2002,20 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
         openKnowledgeBaseResultDialog(
             "1 number of entity-seqs of 1 root node, have been added to knowledge base as ground-truth!"
         );
-    }, [canAddToKnowledgeBase, isSavingEntitySequence, setHoveredNode, treeData]);
+    }, [canAddToKnowledgeBase, isSavingEntitySequence, scrollSvgTargetIntoView, setHoveredNode, treeData]);
 
     const runBatchProcessAllTrainingSequences = useCallback(async () => {
         if (!canBatchProcessAllTrainingSequences) return;
         setIsBatchProcessingAllSequences(true);
         setBatchProcessingProgress(0);
         setBatchProcessingStepLabel("Storing status seq...");
-        await waitForKnowledgeBaseAnimation(700);
+        await waitForKnowledgeBaseAnimation(220);
         setBatchProcessingProgress(33);
         setBatchProcessingStepLabel("Storing action seq...");
-        await waitForKnowledgeBaseAnimation(700);
+        await waitForKnowledgeBaseAnimation(220);
         setBatchProcessingProgress(66);
         setBatchProcessingStepLabel("Storing entity seq...");
-        await waitForKnowledgeBaseAnimation(700);
+        await waitForKnowledgeBaseAnimation(220);
         setBatchProcessingProgress(100);
         setBatchProcessingStepLabel(null);
         setIsBatchProcessingAllSequences(false);
@@ -2104,10 +2129,11 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
     ]);
 
     return (
-        <div style={{ width: "100%", position: "relative" }}>
+        <div ref={treeRootRef} style={{ width: "100%", position: "relative" }}>
             <div className="sequence-tree h-max">
                 {/* Nav Panel */ }
                 <div 
+                    ref={stickyPanelRef}
                     style={{
                         position: "sticky",
                         top: 0,
@@ -2343,18 +2369,18 @@ export const SequenceTree: React.FC<SequenceTreeProps> = ({
                                                     onClick={() => {
                                                         void runBatchProcessAllTrainingSequences();
                                                     }}
-                                                    disabled={!canBatchProcessAllTrainingSequences}
+                                                    disabled={false}
                                                     style={{
                                                         height: 32,
                                                         padding: "0 14px",
                                                         borderRadius: 999,
-                                                        border: canBatchProcessAllTrainingSequences ? "1px solid #cbd5e1" : "1px solid #e2e8f0",
-                                                        background: canBatchProcessAllTrainingSequences ? "#fff" : "#f8fafc",
-                                                        color: canBatchProcessAllTrainingSequences ? "#334155" : "#94a3b8",
+                                                        border: "1px solid #cbd5e1",
+                                                        background: "#fff",
+                                                        color: "#334155",
                                                         fontSize: "var(--font-sm)",
                                                         fontWeight: 400,
-                                                        cursor: canBatchProcessAllTrainingSequences ? "pointer" : "not-allowed",
-                                                        opacity: canBatchProcessAllTrainingSequences ? 1 : 0.7,
+                                                        cursor: "pointer",
+                                                        opacity: 1,
                                                         whiteSpace: "nowrap",
                                                         display: "inline-flex",
                                                         alignItems: "center",
