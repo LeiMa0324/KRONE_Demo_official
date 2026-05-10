@@ -21,7 +21,9 @@ export const Home = () => {
             <WPIBackground />
             <main>
                 <HeroSection />
-                <div className="flex justify-center mt-8" ref={clustrmapsRef} />
+                <div className="flex justify-center mt-8">
+                    <div ref={clustrmapsRef} style={{ width: 300 }} />
+                </div>
             </main>
         </div>
     );
