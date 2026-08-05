@@ -9,6 +9,7 @@ import { TrainingProcess } from "./pages/training_process";
 import { ErrorPage } from "./pages/error_page"
 import { FileProvider } from './FileContext';
 import { KnowledgeBaseViz } from './pages/knowledge_base_viz';
+import { CostAnalysis } from './pages/cost_analysis';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/visualize-tree" element={<VisualizeTree />} />
             <Route path="/training-process" element={<TrainingProcess />} />
             <Route path="/knowledge-base" element={<KnowledgeBaseViz />} />
+            <Route path="/cost-analysis" element={<CostAnalysis />} />
             <Route path="/sequence-tree" element={<VisualizeTable />} />
             <Route path="*" element={<ErrorPage />} />
           </Routes>

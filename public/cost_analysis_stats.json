@@ -1,0 +1,961 @@
+{
+  "generatedFrom": {
+    "train": "krone_train_decompose.csv",
+    "test": "krone_decompose_res.csv"
+  },
+  "train": {
+    "sequences": 5750,
+    "logMessages": 112145,
+    "kroneSeqs": 118392,
+    "storedPatterns": 249
+  },
+  "test": {
+    "sequences": 56931,
+    "logMessages": 1105726,
+    "kroneSeqs": 1169945,
+    "wholeSequenceCalls": 56931,
+    "decomposedCalls": 1169945,
+    "kroneCalls": 589,
+    "savedVsWholeSequence": 56342,
+    "savedVsWholeSequenceRate": 98.9654142734187,
+    "savedVsDecomposed": 1169356,
+    "savedVsDecomposedRate": 99.94965575304822,
+    "servedFromTrainingKB": 1166675,
+    "servedFromTestCache": 2681,
+    "newPatterns": 589
+  },
+  "layers": [
+    {
+      "layer": "ENTITY",
+      "total": 56931,
+      "trainHit": 55051,
+      "testHit": 1413,
+      "llmCall": 467
+    },
+    {
+      "layer": "ACTION",
+      "total": 411315,
+      "trainHit": 410749,
+      "testHit": 494,
+      "llmCall": 72
+    },
+    {
+      "layer": "STATUS",
+      "total": 701699,
+      "trainHit": 700875,
+      "testHit": 774,
+      "llmCall": 50
+    }
+  ],
+  "curve": [
+    {
+      "sequences": 1,
+      "wholeSequenceCalls": 1,
+      "decomposedCalls": 35,
+      "kroneCalls": 3
+    },
+    {
+      "sequences": 475,
+      "wholeSequenceCalls": 475,
+      "decomposedCalls": 12062,
+      "kroneCalls": 18
+    },
+    {
+      "sequences": 949,
+      "wholeSequenceCalls": 949,
+      "decomposedCalls": 23240,
+      "kroneCalls": 40
+    },
+    {
+      "sequences": 1423,
+      "wholeSequenceCalls": 1423,
+      "decomposedCalls": 34828,
+      "kroneCalls": 57
+    },
+    {
+      "sequences": 1897,
+      "wholeSequenceCalls": 1897,
+      "decomposedCalls": 46464,
+      "kroneCalls": 64
+    },
+    {
+      "sequences": 2371,
+      "wholeSequenceCalls": 2371,
+      "decomposedCalls": 58090,
+      "kroneCalls": 69
+    },
+    {
+      "sequences": 2845,
+      "wholeSequenceCalls": 2845,
+      "decomposedCalls": 69761,
+      "kroneCalls": 79
+    },
+    {
+      "sequences": 3319,
+      "wholeSequenceCalls": 3319,
+      "decomposedCalls": 81223,
+      "kroneCalls": 86
+    },
+    {
+      "sequences": 3793,
+      "wholeSequenceCalls": 3793,
+      "decomposedCalls": 90542,
+      "kroneCalls": 108
+    },
+    {
+      "sequences": 4267,
+      "wholeSequenceCalls": 4267,
+      "decomposedCalls": 98908,
+      "kroneCalls": 112
+    },
+    {
+      "sequences": 4741,
+      "wholeSequenceCalls": 4741,
+      "decomposedCalls": 107116,
+      "kroneCalls": 114
+    },
+    {
+      "sequences": 5215,
+      "wholeSequenceCalls": 5215,
+      "decomposedCalls": 115492,
+      "kroneCalls": 115
+    },
+    {
+      "sequences": 5689,
+      "wholeSequenceCalls": 5689,
+      "decomposedCalls": 123855,
+      "kroneCalls": 115
+    },
+    {
+      "sequences": 6163,
+      "wholeSequenceCalls": 6163,
+      "decomposedCalls": 132130,
+      "kroneCalls": 117
+    },
+    {
+      "sequences": 6637,
+      "wholeSequenceCalls": 6637,
+      "decomposedCalls": 140420,
+      "kroneCalls": 118
+    },
+    {
+      "sequences": 7111,
+      "wholeSequenceCalls": 7111,
+      "decomposedCalls": 152608,
+      "kroneCalls": 133
+    },
+    {
+      "sequences": 7585,
+      "wholeSequenceCalls": 7585,
+      "decomposedCalls": 168228,
+      "kroneCalls": 143
+    },
+    {
+      "sequences": 8059,
+      "wholeSequenceCalls": 8059,
+      "decomposedCalls": 184129,
+      "kroneCalls": 154
+    },
+    {
+      "sequences": 8533,
+      "wholeSequenceCalls": 8533,
+      "decomposedCalls": 199680,
+      "kroneCalls": 170
+    },
+    {
+      "sequences": 9007,
+      "wholeSequenceCalls": 9007,
+      "decomposedCalls": 214768,
+      "kroneCalls": 174
+    },
+    {
+      "sequences": 9481,
+      "wholeSequenceCalls": 9481,
+      "decomposedCalls": 228961,
+      "kroneCalls": 181
+    },
+    {
+      "sequences": 9955,
+      "wholeSequenceCalls": 9955,
+      "decomposedCalls": 243123,
+      "kroneCalls": 186
+    },
+    {
+      "sequences": 10429,
+      "wholeSequenceCalls": 10429,
+      "decomposedCalls": 256211,
+      "kroneCalls": 192
+    },
+    {
+      "sequences": 10903,
+      "wholeSequenceCalls": 10903,
+      "decomposedCalls": 267614,
+      "kroneCalls": 207
+    },
+    {
+      "sequences": 11377,
+      "wholeSequenceCalls": 11377,
+      "decomposedCalls": 279164,
+      "kroneCalls": 221
+    },
+    {
+      "sequences": 11851,
+      "wholeSequenceCalls": 11851,
+      "decomposedCalls": 290244,
+      "kroneCalls": 225
+    },
+    {
+      "sequences": 12325,
+      "wholeSequenceCalls": 12325,
+      "decomposedCalls": 301085,
+      "kroneCalls": 226
+    },
+    {
+      "sequences": 12799,
+      "wholeSequenceCalls": 12799,
+      "decomposedCalls": 311950,
+      "kroneCalls": 227
+    },
+    {
+      "sequences": 13273,
+      "wholeSequenceCalls": 13273,
+      "decomposedCalls": 322843,
+      "kroneCalls": 227
+    },
+    {
+      "sequences": 13747,
+      "wholeSequenceCalls": 13747,
+      "decomposedCalls": 334312,
+      "kroneCalls": 233
+    },
+    {
+      "sequences": 14221,
+      "wholeSequenceCalls": 14221,
+      "decomposedCalls": 345159,
+      "kroneCalls": 243
+    },
+    {
+      "sequences": 14695,
+      "wholeSequenceCalls": 14695,
+      "decomposedCalls": 358637,
+      "kroneCalls": 253
+    },
+    {
+      "sequences": 15169,
+      "wholeSequenceCalls": 15169,
+      "decomposedCalls": 371992,
+      "kroneCalls": 265
+    },
+    {
+      "sequences": 15643,
+      "wholeSequenceCalls": 15643,
+      "decomposedCalls": 385246,
+      "kroneCalls": 283
+    },
+    {
+      "sequences": 16117,
+      "wholeSequenceCalls": 16117,
+      "decomposedCalls": 399019,
+      "kroneCalls": 297
+    },
+    {
+      "sequences": 16591,
+      "wholeSequenceCalls": 16591,
+      "decomposedCalls": 412348,
+      "kroneCalls": 311
+    },
+    {
+      "sequences": 17065,
+      "wholeSequenceCalls": 17065,
+      "decomposedCalls": 425240,
+      "kroneCalls": 333
+    },
+    {
+      "sequences": 17539,
+      "wholeSequenceCalls": 17539,
+      "decomposedCalls": 437317,
+      "kroneCalls": 363
+    },
+    {
+      "sequences": 18013,
+      "wholeSequenceCalls": 18013,
+      "decomposedCalls": 447073,
+      "kroneCalls": 369
+    },
+    {
+      "sequences": 18487,
+      "wholeSequenceCalls": 18487,
+      "decomposedCalls": 456063,
+      "kroneCalls": 369
+    },
+    {
+      "sequences": 18961,
+      "wholeSequenceCalls": 18961,
+      "decomposedCalls": 465031,
+      "kroneCalls": 369
+    },
+    {
+      "sequences": 19435,
+      "wholeSequenceCalls": 19435,
+      "decomposedCalls": 474007,
+      "kroneCalls": 369
+    },
+    {
+      "sequences": 19909,
+      "wholeSequenceCalls": 19909,
+      "decomposedCalls": 483084,
+      "kroneCalls": 370
+    },
+    {
+      "sequences": 20383,
+      "wholeSequenceCalls": 20383,
+      "decomposedCalls": 492074,
+      "kroneCalls": 371
+    },
+    {
+      "sequences": 20857,
+      "wholeSequenceCalls": 20857,
+      "decomposedCalls": 500967,
+      "kroneCalls": 371
+    },
+    {
+      "sequences": 21331,
+      "wholeSequenceCalls": 21331,
+      "decomposedCalls": 509627,
+      "kroneCalls": 379
+    },
+    {
+      "sequences": 21805,
+      "wholeSequenceCalls": 21805,
+      "decomposedCalls": 519049,
+      "kroneCalls": 412
+    },
+    {
+      "sequences": 22279,
+      "wholeSequenceCalls": 22279,
+      "decomposedCalls": 528263,
+      "kroneCalls": 413
+    },
+    {
+      "sequences": 22753,
+      "wholeSequenceCalls": 22753,
+      "decomposedCalls": 537502,
+      "kroneCalls": 415
+    },
+    {
+      "sequences": 23227,
+      "wholeSequenceCalls": 23227,
+      "decomposedCalls": 546842,
+      "kroneCalls": 417
+    },
+    {
+      "sequences": 23701,
+      "wholeSequenceCalls": 23701,
+      "decomposedCalls": 556109,
+      "kroneCalls": 419
+    },
+    {
+      "sequences": 24175,
+      "wholeSequenceCalls": 24175,
+      "decomposedCalls": 565375,
+      "kroneCalls": 420
+    },
+    {
+      "sequences": 24649,
+      "wholeSequenceCalls": 24649,
+      "decomposedCalls": 574656,
+      "kroneCalls": 424
+    },
+    {
+      "sequences": 25123,
+      "wholeSequenceCalls": 25123,
+      "decomposedCalls": 583975,
+      "kroneCalls": 428
+    },
+    {
+      "sequences": 25597,
+      "wholeSequenceCalls": 25597,
+      "decomposedCalls": 593323,
+      "kroneCalls": 430
+    },
+    {
+      "sequences": 26071,
+      "wholeSequenceCalls": 26071,
+      "decomposedCalls": 602633,
+      "kroneCalls": 431
+    },
+    {
+      "sequences": 26545,
+      "wholeSequenceCalls": 26545,
+      "decomposedCalls": 612075,
+      "kroneCalls": 431
+    },
+    {
+      "sequences": 27019,
+      "wholeSequenceCalls": 27019,
+      "decomposedCalls": 621413,
+      "kroneCalls": 432
+    },
+    {
+      "sequences": 27493,
+      "wholeSequenceCalls": 27493,
+      "decomposedCalls": 630723,
+      "kroneCalls": 432
+    },
+    {
+      "sequences": 27967,
+      "wholeSequenceCalls": 27967,
+      "decomposedCalls": 640126,
+      "kroneCalls": 433
+    },
+    {
+      "sequences": 28441,
+      "wholeSequenceCalls": 28441,
+      "decomposedCalls": 649338,
+      "kroneCalls": 436
+    },
+    {
+      "sequences": 28915,
+      "wholeSequenceCalls": 28915,
+      "decomposedCalls": 658643,
+      "kroneCalls": 436
+    },
+    {
+      "sequences": 29389,
+      "wholeSequenceCalls": 29389,
+      "decomposedCalls": 667928,
+      "kroneCalls": 436
+    },
+    {
+      "sequences": 29863,
+      "wholeSequenceCalls": 29863,
+      "decomposedCalls": 677148,
+      "kroneCalls": 440
+    },
+    {
+      "sequences": 30337,
+      "wholeSequenceCalls": 30337,
+      "decomposedCalls": 686365,
+      "kroneCalls": 440
+    },
+    {
+      "sequences": 30811,
+      "wholeSequenceCalls": 30811,
+      "decomposedCalls": 695656,
+      "kroneCalls": 440
+    },
+    {
+      "sequences": 31285,
+      "wholeSequenceCalls": 31285,
+      "decomposedCalls": 704923,
+      "kroneCalls": 441
+    },
+    {
+      "sequences": 31759,
+      "wholeSequenceCalls": 31759,
+      "decomposedCalls": 714266,
+      "kroneCalls": 443
+    },
+    {
+      "sequences": 32233,
+      "wholeSequenceCalls": 32233,
+      "decomposedCalls": 722111,
+      "kroneCalls": 448
+    },
+    {
+      "sequences": 32707,
+      "wholeSequenceCalls": 32707,
+      "decomposedCalls": 729639,
+      "kroneCalls": 450
+    },
+    {
+      "sequences": 33181,
+      "wholeSequenceCalls": 33181,
+      "decomposedCalls": 737441,
+      "kroneCalls": 455
+    },
+    {
+      "sequences": 33655,
+      "wholeSequenceCalls": 33655,
+      "decomposedCalls": 745138,
+      "kroneCalls": 459
+    },
+    {
+      "sequences": 34129,
+      "wholeSequenceCalls": 34129,
+      "decomposedCalls": 753028,
+      "kroneCalls": 464
+    },
+    {
+      "sequences": 34603,
+      "wholeSequenceCalls": 34603,
+      "decomposedCalls": 760557,
+      "kroneCalls": 467
+    },
+    {
+      "sequences": 35077,
+      "wholeSequenceCalls": 35077,
+      "decomposedCalls": 768184,
+      "kroneCalls": 469
+    },
+    {
+      "sequences": 35551,
+      "wholeSequenceCalls": 35551,
+      "decomposedCalls": 776839,
+      "kroneCalls": 487
+    },
+    {
+      "sequences": 36025,
+      "wholeSequenceCalls": 36025,
+      "decomposedCalls": 786569,
+      "kroneCalls": 505
+    },
+    {
+      "sequences": 36499,
+      "wholeSequenceCalls": 36499,
+      "decomposedCalls": 795949,
+      "kroneCalls": 508
+    },
+    {
+      "sequences": 36973,
+      "wholeSequenceCalls": 36973,
+      "decomposedCalls": 805293,
+      "kroneCalls": 508
+    },
+    {
+      "sequences": 37447,
+      "wholeSequenceCalls": 37447,
+      "decomposedCalls": 814666,
+      "kroneCalls": 508
+    },
+    {
+      "sequences": 37921,
+      "wholeSequenceCalls": 37921,
+      "decomposedCalls": 823983,
+      "kroneCalls": 511
+    },
+    {
+      "sequences": 38395,
+      "wholeSequenceCalls": 38395,
+      "decomposedCalls": 833419,
+      "kroneCalls": 514
+    },
+    {
+      "sequences": 38869,
+      "wholeSequenceCalls": 38869,
+      "decomposedCalls": 842815,
+      "kroneCalls": 517
+    },
+    {
+      "sequences": 39343,
+      "wholeSequenceCalls": 39343,
+      "decomposedCalls": 852073,
+      "kroneCalls": 518
+    },
+    {
+      "sequences": 39817,
+      "wholeSequenceCalls": 39817,
+      "decomposedCalls": 861384,
+      "kroneCalls": 519
+    },
+    {
+      "sequences": 40291,
+      "wholeSequenceCalls": 40291,
+      "decomposedCalls": 870712,
+      "kroneCalls": 519
+    },
+    {
+      "sequences": 40765,
+      "wholeSequenceCalls": 40765,
+      "decomposedCalls": 879986,
+      "kroneCalls": 520
+    },
+    {
+      "sequences": 41239,
+      "wholeSequenceCalls": 41239,
+      "decomposedCalls": 889215,
+      "kroneCalls": 521
+    },
+    {
+      "sequences": 41713,
+      "wholeSequenceCalls": 41713,
+      "decomposedCalls": 898522,
+      "kroneCalls": 522
+    },
+    {
+      "sequences": 42187,
+      "wholeSequenceCalls": 42187,
+      "decomposedCalls": 907826,
+      "kroneCalls": 522
+    },
+    {
+      "sequences": 42661,
+      "wholeSequenceCalls": 42661,
+      "decomposedCalls": 917014,
+      "kroneCalls": 525
+    },
+    {
+      "sequences": 43135,
+      "wholeSequenceCalls": 43135,
+      "decomposedCalls": 926484,
+      "kroneCalls": 540
+    },
+    {
+      "sequences": 43609,
+      "wholeSequenceCalls": 43609,
+      "decomposedCalls": 935837,
+      "kroneCalls": 543
+    },
+    {
+      "sequences": 44083,
+      "wholeSequenceCalls": 44083,
+      "decomposedCalls": 945190,
+      "kroneCalls": 546
+    },
+    {
+      "sequences": 44557,
+      "wholeSequenceCalls": 44557,
+      "decomposedCalls": 954507,
+      "kroneCalls": 547
+    },
+    {
+      "sequences": 45031,
+      "wholeSequenceCalls": 45031,
+      "decomposedCalls": 963923,
+      "kroneCalls": 549
+    },
+    {
+      "sequences": 45505,
+      "wholeSequenceCalls": 45505,
+      "decomposedCalls": 973227,
+      "kroneCalls": 552
+    },
+    {
+      "sequences": 45979,
+      "wholeSequenceCalls": 45979,
+      "decomposedCalls": 982516,
+      "kroneCalls": 553
+    },
+    {
+      "sequences": 46453,
+      "wholeSequenceCalls": 46453,
+      "decomposedCalls": 990220,
+      "kroneCalls": 558
+    },
+    {
+      "sequences": 46927,
+      "wholeSequenceCalls": 46927,
+      "decomposedCalls": 997591,
+      "kroneCalls": 561
+    },
+    {
+      "sequences": 47401,
+      "wholeSequenceCalls": 47401,
+      "decomposedCalls": 1005126,
+      "kroneCalls": 564
+    },
+    {
+      "sequences": 47875,
+      "wholeSequenceCalls": 47875,
+      "decomposedCalls": 1012562,
+      "kroneCalls": 568
+    },
+    {
+      "sequences": 48349,
+      "wholeSequenceCalls": 48349,
+      "decomposedCalls": 1020066,
+      "kroneCalls": 569
+    },
+    {
+      "sequences": 48823,
+      "wholeSequenceCalls": 48823,
+      "decomposedCalls": 1027418,
+      "kroneCalls": 569
+    },
+    {
+      "sequences": 49297,
+      "wholeSequenceCalls": 49297,
+      "decomposedCalls": 1034925,
+      "kroneCalls": 569
+    },
+    {
+      "sequences": 49771,
+      "wholeSequenceCalls": 49771,
+      "decomposedCalls": 1042850,
+      "kroneCalls": 573
+    },
+    {
+      "sequences": 50245,
+      "wholeSequenceCalls": 50245,
+      "decomposedCalls": 1050270,
+      "kroneCalls": 574
+    },
+    {
+      "sequences": 50719,
+      "wholeSequenceCalls": 50719,
+      "decomposedCalls": 1057657,
+      "kroneCalls": 574
+    },
+    {
+      "sequences": 51193,
+      "wholeSequenceCalls": 51193,
+      "decomposedCalls": 1065069,
+      "kroneCalls": 575
+    },
+    {
+      "sequences": 51667,
+      "wholeSequenceCalls": 51667,
+      "decomposedCalls": 1072463,
+      "kroneCalls": 575
+    },
+    {
+      "sequences": 52141,
+      "wholeSequenceCalls": 52141,
+      "decomposedCalls": 1079894,
+      "kroneCalls": 577
+    },
+    {
+      "sequences": 52615,
+      "wholeSequenceCalls": 52615,
+      "decomposedCalls": 1087328,
+      "kroneCalls": 579
+    },
+    {
+      "sequences": 53089,
+      "wholeSequenceCalls": 53089,
+      "decomposedCalls": 1094781,
+      "kroneCalls": 580
+    },
+    {
+      "sequences": 53563,
+      "wholeSequenceCalls": 53563,
+      "decomposedCalls": 1103451,
+      "kroneCalls": 583
+    },
+    {
+      "sequences": 54037,
+      "wholeSequenceCalls": 54037,
+      "decomposedCalls": 1112643,
+      "kroneCalls": 583
+    },
+    {
+      "sequences": 54511,
+      "wholeSequenceCalls": 54511,
+      "decomposedCalls": 1121888,
+      "kroneCalls": 584
+    },
+    {
+      "sequences": 54985,
+      "wholeSequenceCalls": 54985,
+      "decomposedCalls": 1131174,
+      "kroneCalls": 586
+    },
+    {
+      "sequences": 55459,
+      "wholeSequenceCalls": 55459,
+      "decomposedCalls": 1140524,
+      "kroneCalls": 586
+    },
+    {
+      "sequences": 55933,
+      "wholeSequenceCalls": 55933,
+      "decomposedCalls": 1149913,
+      "kroneCalls": 586
+    },
+    {
+      "sequences": 56407,
+      "wholeSequenceCalls": 56407,
+      "decomposedCalls": 1159451,
+      "kroneCalls": 588
+    },
+    {
+      "sequences": 56881,
+      "wholeSequenceCalls": 56881,
+      "decomposedCalls": 1168986,
+      "kroneCalls": 589
+    },
+    {
+      "sequences": 56931,
+      "wholeSequenceCalls": 56931,
+      "decomposedCalls": 1169945,
+      "kroneCalls": 589
+    }
+  ],
+  "topReused": [
+    {
+      "layer": "STATUS",
+      "label": "blk_4 · none_22 · none_31",
+      "count": 166837,
+      "fromTraining": true,
+      "savedCalls": 166837
+    },
+    {
+      "layer": "STATUS",
+      "label": "blk_4 · writing_23 · none_32",
+      "count": 166757,
+      "fromTraining": true,
+      "savedCalls": 166757
+    },
+    {
+      "layer": "ACTION",
+      "label": "block blk_6 · receiving_28",
+      "count": 80183,
+      "fromTraining": true,
+      "savedCalls": 80183
+    },
+    {
+      "layer": "ACTION",
+      "label": "NameSystem_2 · add_3",
+      "count": 68776,
+      "fromTraining": true,
+      "savedCalls": 68776
+    },
+    {
+      "layer": "STATUS",
+      "label": "NameSystem_2 · allocate_4 · none_4",
+      "count": 56931,
+      "fromTraining": true,
+      "savedCalls": 56931
+    },
+    {
+      "layer": "ACTION",
+      "label": "NameSystem_2 · allocate_4",
+      "count": 56666,
+      "fromTraining": true,
+      "savedCalls": 56666
+    },
+    {
+      "layer": "ACTION",
+      "label": "block blk file_7 · deleting_34",
+      "count": 47012,
+      "fromTraining": true,
+      "savedCalls": 47012
+    },
+    {
+      "layer": "STATUS",
+      "label": "blk_4 · delete_24 · invalid_34 ·  · invalid_34 ·  · invalid_34",
+      "count": 45847,
+      "fromTraining": true,
+      "savedCalls": 45847
+    },
+    {
+      "layer": "STATUS",
+      "label": "block blk file_7 · deleting_34 · none_46 ·  · none_46 ·  · none_46",
+      "count": 45417,
+      "fromTraining": true,
+      "savedCalls": 45417
+    },
+    {
+      "layer": "STATUS",
+      "label": "NameSystem_2 · add_3 · updated_3 ·  · updated_3 ·  · updated_3",
+      "count": 44501,
+      "fromTraining": true,
+      "savedCalls": 44501
+    },
+    {
+      "layer": "ACTION",
+      "label": "blk_4 · none_22 ·  · writing_23 ·  · none_22 ·  · writing_23 ·  · none_22 ·  · writing_23",
+      "count": 38108,
+      "fromTraining": true,
+      "savedCalls": 38108
+    },
+    {
+      "layer": "STATUS",
+      "label": "block blk_6 · receiving_28 · none_40 ·  · none_40 ·  · none_40",
+      "count": 33413,
+      "fromTraining": true,
+      "savedCalls": 33413
+    },
+    {
+      "layer": "ACTION",
+      "label": "blk_4 · delete_24",
+      "count": 32006,
+      "fromTraining": true,
+      "savedCalls": 32006
+    },
+    {
+      "layer": "ACTION",
+      "label": "/_0 · serving_0",
+      "count": 26797,
+      "fromTraining": true,
+      "savedCalls": 26797
+    },
+    {
+      "layer": "STATUS",
+      "label": "block blk_6 · receiving_28 · none_40",
+      "count": 23957,
+      "fromTraining": true,
+      "savedCalls": 23957
+    },
+    {
+      "layer": "STATUS",
+      "label": "blk_4 · transfer_13 · exception_21",
+      "count": 23226,
+      "fromTraining": true,
+      "savedCalls": 23226
+    },
+    {
+      "layer": "STATUS",
+      "label": "block blk_6 · receiving_28 · none_40 ·  · none_40",
+      "count": 23059,
+      "fromTraining": true,
+      "savedCalls": 23059
+    },
+    {
+      "layer": "ACTION",
+      "label": "blk_4 · transfer_13",
+      "count": 15493,
+      "fromTraining": true,
+      "savedCalls": 15493
+    },
+    {
+      "layer": "STATUS",
+      "label": "/_0 · serving_0 · none_0",
+      "count": 14634,
+      "fromTraining": true,
+      "savedCalls": 14634
+    },
+    {
+      "layer": "STATUS",
+      "label": "NameSystem_2 · add_3 · updated_3",
+      "count": 12393,
+      "fromTraining": true,
+      "savedCalls": 12393
+    },
+    {
+      "layer": "STATUS",
+      "label": "NameSystem_2 · add_3 · updated_3 ·  · updated_3",
+      "count": 12178,
+      "fromTraining": true,
+      "savedCalls": 12178
+    },
+    {
+      "layer": "ENTITY",
+      "label": "block blk_6 ·  · NameSystem_2 ·  · block blk_6 ·  · blk_4 ·  · NameSystem_2 ·  · blk_4 ·  · block blk file_7",
+      "count": 10751,
+      "fromTraining": true,
+      "savedCalls": 10751
+    },
+    {
+      "layer": "ACTION",
+      "label": "blk_4 · none_22 ·  · writing_23 ·  · none_22 ·  · writing_23",
+      "count": 10669,
+      "fromTraining": true,
+      "savedCalls": 10669
+    },
+    {
+      "layer": "ACTION",
+      "label": "blk_4 · none_22 ·  · writing_23",
+      "count": 10587,
+      "fromTraining": true,
+      "savedCalls": 10587
+    },
+    {
+      "layer": "ENTITY",
+      "label": "block blk_6 ·  · NameSystem_2 ·  · blk_4 ·  · NameSystem_2 ·  · blk_4 ·  · block blk file_7",
+      "count": 10348,
+      "fromTraining": true,
+      "savedCalls": 10348
+    }
+  ]
+}

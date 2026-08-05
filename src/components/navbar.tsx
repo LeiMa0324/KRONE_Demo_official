@@ -22,6 +22,7 @@ const navLinks = [
     { path: "/training-process", label: "Training Process" },
     { path: "/sequence-tree", label: "Log Anomaly Detection" },
     { path: "/knowledge-base", label: "Knowledge Base" },
+    { path: "/cost-analysis", label: "Cost Analysis" },
     { path: "/about", label: "Team" },
 ];
 
