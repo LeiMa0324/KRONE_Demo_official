@@ -5,31 +5,46 @@ import type { TreeNode } from "../tree_utils";
 import { VizTree } from "@/components/viz_tree_components/viz_tree/viz_tree";
 import { Footer } from "@/components/footer";
 import { Loader2, Sparkles } from "lucide-react";
-import { withBase } from "@/lib/base-url";
+import { useDataset } from "@/DatasetContext";
+import { DatasetChip } from "@/components/dataset_selector";
+import { useStageComplete } from "@/components/next_stage";
+import { StageHeader } from "@/components/stage_header";
 
 const TEMPLATE_TABLE_FONT_SIZE = "var(--font-sm)";
 const TEMPLATE_PREVIEW_LENGTH = 80;
+const EXTRACTION_DURATION_MS = 1100;
+
+/**
+ * The page is the first stage of the demo's pipeline, and it is staged in three
+ * beats: the dataset (answered on the homepage), the templates it ships, and the
+ * hierarchy the LLM mines from them.
+ *
+ * It lands on "templates" rather than on an empty canvas -- there is something
+ * to read the moment you arrive -- but deliberately stops short of the tree, so
+ * that the one thing KRONE actually does here is something the visitor sets off
+ * themselves. Exactly one control is filled at any moment; that, plus a guidance
+ * line that changes with the stage, is the whole guidance mechanism.
+ */
+type Stage = "templates" | "extracting" | "extracted";
 
 export const VisualizeTree: React.FC = () => {
+  const { fileFor } = useDataset();
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
-  const [showTemplateSelectControl, setShowTemplateSelectControl] = useState(false);
-  const [selectedTemplateSource, setSelectedTemplateSource] = useState("");
-  const [isTemplatesLoaded, setIsTemplatesLoaded] = useState(false);
-  const [isHierarchyExtracted, setIsHierarchyExtracted] = useState(false);
-  const [isExtractingHierarchy, setIsExtractingHierarchy] = useState(false);
+  const [stage, setStage] = useState<Stage>("templates");
   const [expandedTemplateRows, setExpandedTemplateRows] = useState<number[]>([]);
-  const extractTimerRef = useRef<number | null>(null);
+  const [activeView, setActiveView] = useState<"tree" | "templates">("tree");
+  const stageTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    csv(withBase("Krone_Tree.csv")).then(rows => setTreeData(buildTree(rows)));
-  }, []);
+    csv(fileFor("Krone_Tree")).then(rows => setTreeData(buildTree(rows)));
+  }, [fileFor]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "";
-      if (extractTimerRef.current !== null) {
-        window.clearTimeout(extractTimerRef.current);
+      if (stageTimerRef.current !== null) {
+        window.clearTimeout(stageTimerRef.current);
       }
     };
   }, []);
@@ -75,211 +90,133 @@ export const VisualizeTree: React.FC = () => {
     };
   }, [treeData]);
 
-  const canExtractHierarchy = isTemplatesLoaded && !isExtractingHierarchy;
+  const runExtraction = () => {
+    if (stage === "extracting") return;
+    setActiveView("tree");
+    setStage("extracting");
+    if (stageTimerRef.current !== null) window.clearTimeout(stageTimerRef.current);
+    stageTimerRef.current = window.setTimeout(() => {
+      setStage("extracted");
+      stageTimerRef.current = null;
+    }, EXTRACTION_DURATION_MS);
+  };
 
-  const showTreeView = isHierarchyExtracted;
+  const showTreeView = stage === "extracted" && activeView === "tree";
+
+  useStageComplete(stage === "extracted");
+
+  const guidance: string =
+    stage === "templates"
+      ? "KRONE mines an entity / action / status hierarchy out of these log templates with an LLM."
+      : stage === "extracting"
+        ? `Grouping ${templateRows.length} templates into entity, action and status levels…`
+        : "The Krone-tree is ready. It is what decomposes log sequences on every stage that follows.";
 
   return (
     <>
       <div style={{ minHeight: "100vh", height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ paddingTop: "4.5rem" }}></div>
+        <div style={{ paddingTop: "var(--stage-top)" }}></div>
+
+        {/* The inset the other three pages get from their scroll container's
+            padding, so the dataset chip starts at the same x here. */}
+        <div style={{ padding: "0 var(--stage-inset)" }}>
+        <StageHeader
+          context={
+            <>
+              <DatasetChip />
+              <span aria-hidden="true" style={{ color: "var(--n-300)" }}>|</span>
+              <span>
+                <b style={{ color: "var(--n-900)", fontWeight: 600 }}>{templateRows.length}</b> log templates
+              </span>
+
+              {/* The level counts are a result of extraction, so they join the
+                  line when it produces them rather than sitting at zero. The
+                  swatches went with the tree's colours: three identical grey
+                  dots would have been a legend for a distinction the tree no
+                  longer draws. */}
+              {stage === "extracted" &&
+                ([
+                  ["entities", treeStats.entityCount],
+                  ["actions", treeStats.actionCount],
+                  ["statuses", treeStats.statusCount],
+                ] as const).map(([label, count]) => (
+                  <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap" }}>
+                    <span aria-hidden="true" style={{ color: "var(--n-300)" }}>|</span>
+                    <b style={{ color: "var(--n-900)", fontWeight: 600 }}>{count}</b>
+                    {label}
+                  </span>
+                ))}
+            </>
+          }
+          actions={
+            <>
+              {stage === "templates" && (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={runExtraction}
+                  title="Mine the entity / action / status hierarchy from these templates"
+                >
+                  <Sparkles size={13} aria-hidden="true" />
+                  Extract hierarchy
+                </button>
+              )}
+
+              {/* The same button, busy: it keeps its place and its weight
+                  rather than being replaced by a full-screen overlay, so the
+                  templates it is working on stay on screen. */}
+              {stage === "extracting" && (
+                <button type="button" className="btn btn-primary" data-busy="true" disabled>
+                  <Loader2 size={13} className="animate-spin" aria-hidden="true" />
+                  Mining hierarchy…
+                </button>
+              )}
+
+              {/* Once the tree is out there is nothing left to run here, so the
+                  actions row hands over to the two views of what was produced.
+                  The forward path is the hand-off in the corner, which lights
+                  up at the same moment. */}
+              {stage === "extracted" && (
+                <div className="segmented" role="group" aria-label="Switch view">
+                  {([["tree", "Krone-tree"], ["templates", `Templates (${templateRows.length})`]] as const).map(([view, label]) => (
+                    <button
+                      key={view}
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setActiveView(view)}
+                      aria-pressed={activeView === view}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          }
+          explanation={<span aria-live="polite">{guidance}</span>}
+        />
+        </div>
+        {/* While a stage is running the canvas recedes instead of being covered:
+            the busy button in the header is the status, and the templates being
+            worked on stay readable underneath. */}
         <div
+          aria-busy={stage === "extracting"}
           style={{
-            background: "#fff",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            paddingBottom: 0,
-            marginBottom: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-start",
+            flex: "1 1 auto",
+            position: "relative",
+            overflow: "hidden",
+            minHeight: 0,
+            padding: "0 var(--stage-inset)",
+            opacity: stage === "extracting" ? 0.45 : 1,
+            transition: "opacity 200ms ease",
           }}
         >
-          <div
-            style={{
-              marginBottom: 12,
-              width: "100%",
-              padding: "0 20px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
-            }}
-          >
-            <div
-              style={{
-                width: "100%",
-                display: "flex",
-                justifyContent: "center",
-                padding: "30px 0 35px 0",
-                borderBottom: "1px solid #edf1f5",
-              }}
-            >
-              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowTemplateSelectControl(true)}
-                  style={{
-                    height: 30,
-                    padding: "0 12px",
-                    borderRadius: 999,
-                    border: isTemplatesLoaded ? "1px solid #bae6fd" : showTemplateSelectControl ? "1px solid #fdba74" : "1px solid #d6d6d6",
-                    background: isTemplatesLoaded ? "#f0f9ff" : showTemplateSelectControl ? "#fff7ed" : "#fff",
-                    color: isTemplatesLoaded ? "#0369a1" : showTemplateSelectControl ? "#9a3412" : "#475569",
-                    fontSize: "var(--font-sm)",
-                    fontWeight: 400,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    whiteSpace: "nowrap",
-                    cursor: "pointer",
-                  }}
-                >
-                  {isTemplatesLoaded ? "✓" : ""}
-                  1 Select log templates
-                </button>
-                <span style={{ color: "#c7cdd4", fontSize: 13 }}>→</span>
-                <button
-                  type="button"
-                  disabled={!canExtractHierarchy}
-                  onClick={() => {
-                    if (!canExtractHierarchy) return;
-                    if (extractTimerRef.current !== null) {
-                      window.clearTimeout(extractTimerRef.current);
-                      extractTimerRef.current = null;
-                    }
-                    setIsHierarchyExtracted(false);
-                    setIsExtractingHierarchy(true);
-                    extractTimerRef.current = window.setTimeout(() => {
-                      setIsExtractingHierarchy(false);
-                      setIsHierarchyExtracted(true);
-                      extractTimerRef.current = null;
-                    }, 2500);
-                  }}
-                  style={{
-                    height: 30,
-                    padding: "0 12px",
-                    borderRadius: 999,
-                    border: isHierarchyExtracted ? "1px solid #bae6fd" : isExtractingHierarchy ? "1px solid #fdba74" : "1px solid #d6d6d6",
-                    background: isHierarchyExtracted ? "#f0f9ff" : isExtractingHierarchy ? "#fff7ed" : "#fff",
-                    color: isHierarchyExtracted ? "#0369a1" : isExtractingHierarchy ? "#9a3412" : "#475569",
-                    fontSize: "var(--font-sm)",
-                    fontWeight: 400,
-                    opacity: canExtractHierarchy || isHierarchyExtracted ? 1 : 0.55,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    whiteSpace: "nowrap",
-                    cursor: canExtractHierarchy ? "pointer" : "not-allowed",
-                  }}
-                >
-                  {isHierarchyExtracted ? "✓" : ""}
-                  <Sparkles size={12} />
-                  2 Hierarchy extraction (HDFS dataset)
-                </button>
-              </div>
-            </div>
-            {showTemplateSelectControl && (
-              <div
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  padding: "10px 0 0 0",
-                }}
-              >
-                <span style={{ color: "var(--text-label)", fontSize: "var(--font-sm)" }}>Select log templates:</span>
-                <select
-                  value={selectedTemplateSource}
-                  onChange={(e) => setSelectedTemplateSource(e.target.value)}
-                  style={{
-                    minWidth: 180,
-                    height: 30,
-                    border: "1px solid #ccc",
-                    color: "var(--text-value)",
-                    fontSize: "var(--font-sm)",
-                    textAlign: "left",
-                  }}
-                >
-                  <option value=""></option>
-                  <option value="hdfs">HDFS log templates</option>
-                </select>
-                <button
-                  type="button"
-                  disabled={!selectedTemplateSource}
-                  onClick={() => {
-                    if (!selectedTemplateSource) return;
-                    setIsTemplatesLoaded(true);
-                    setIsHierarchyExtracted(false);
-                    setExpandedTemplateRows([]);
-                  }}
-                  style={{
-                    height: 30,
-                    padding: "0 12px",
-                    borderRadius: 8,
-                    border: "1px solid #d6d6d6",
-                    background: "#fff",
-                    color: "#334155",
-                    fontSize: "var(--font-sm)",
-                    fontWeight: 400,
-                    cursor: selectedTemplateSource ? "pointer" : "not-allowed",
-                    opacity: selectedTemplateSource ? 1 : 0.55,
-                  }}
-                >
-                  Load
-                </button>
-                {isTemplatesLoaded && (
-                  <>
-                    <span
-                      style={{
-                        color: "#0369a1",
-                        fontSize: "var(--font-sm)",
-                        fontWeight: 500,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Loaded {templateRows.length} templates
-                    </span>
-                    <span
-                      style={{
-                        color: "#475569",
-                        fontSize: "var(--font-sm)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Entity: {treeStats.entityCount}
-                    </span>
-                    <span
-                      style={{
-                        color: "#475569",
-                        fontSize: "var(--font-sm)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Action: {treeStats.actionCount}
-                    </span>
-                    <span
-                      style={{
-                        color: "#475569",
-                        fontSize: "var(--font-sm)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      Status: {treeStats.statusCount}
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        <div style={{ flex: "1 1 auto", position: "relative", overflow: "hidden", minHeight: 0 }}>
         {showTreeView ? (
           <div
             style={{
               display: "flex",
               alignItems: "flex-start",
-              padding: "20px",
+              padding: "20px 0",
               boxSizing: "border-box",
               overflow: "hidden",
               columnGap: 16,
@@ -307,7 +244,7 @@ export const VisualizeTree: React.FC = () => {
               )}
             </div>
           </div>
-        ) : isTemplatesLoaded ? (
+        ) : (
           <div
             style={{
               display: "flex",
@@ -315,22 +252,23 @@ export const VisualizeTree: React.FC = () => {
               alignItems: "stretch",
               height: "100%",
               minHeight: 0,
-              padding: "20px",
+              padding: "20px 0",
               boxSizing: "border-box",
               overflow: "hidden",
             }}
           >
-            <div className="text-center" style={{ paddingTop: "0.5rem", paddingBottom: "2rem", flex: "0 0 auto" }}>
-              <h1 className="font-WPIfont text-black text-2xl font-bold">Templates</h1>
+            <div className="text-center" style={{ paddingTop: "0.5rem", paddingBottom: "1.25rem", flex: "0 0 auto" }}>
+              <h1 className="font-WPIfont text-2xl font-bold text-[var(--n-900)]">Templates</h1>
             </div>
             <div
               style={{
                 flex: "1 1 auto",
                 minHeight: 0,
                 overflow: "auto",
-                border: "1px solid #edf1f5",
-                borderRadius: 12,
-                background: "#fff",
+                border: "1px solid var(--table-cell-border)",
+                borderRadius: "var(--r-md)",
+                background: "var(--n-0)",
+                boxShadow: "var(--e1)",
               }}
             >
               <div
@@ -355,6 +293,7 @@ export const VisualizeTree: React.FC = () => {
               {templateRows.map((row, index) => (
                 <div
                   key={`${row.templateId}-${index}`}
+                  className="data-row"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "220px minmax(480px, 1fr)",
@@ -392,25 +331,18 @@ export const VisualizeTree: React.FC = () => {
                       return (
                         <div style={{ display: "flex", alignItems: "flex-start", gap: 10, justifyContent: "space-between" }}>
                           <span style={{ flex: "1 1 auto", minWidth: 0, lineHeight: 1.5 }}>{displayTemplate}</span>
+                          {/* A filled blue pill on every long row stacked into a
+                              column of visual noise. Quiet by default, coloured
+                              on hover. */}
                           {isLongTemplate && (
                             <button
                               type="button"
+                              className="row-toggle"
+                              aria-expanded={isExpanded}
                               onClick={() => {
                                 setExpandedTemplateRows((prev) =>
                                   prev.includes(index) ? prev.filter((rowIndex) => rowIndex !== index) : [...prev, index]
                                 );
-                              }}
-                              style={{
-                                flex: "0 0 auto",
-                                border: "1px solid #bae6fd",
-                                background: "#f0f9ff",
-                                color: "#0369a1",
-                                borderRadius: 999,
-                                padding: "2px 10px",
-                                fontSize: 12,
-                                fontWeight: 600,
-                                lineHeight: 1.4,
-                                cursor: "pointer",
                               }}
                             >
                               {isExpanded ? "Collapse" : "Expand"}
@@ -423,38 +355,6 @@ export const VisualizeTree: React.FC = () => {
                 </div>
               ))}
             </div>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-              color: "#64748b",
-              fontSize: "var(--font-md)",
-            }}
-          >
-            Select log templates and click Load to view templates.
-          </div>
-        )}
-        {isExtractingHierarchy && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 10,
-              color: "#1f3f8f",
-              fontSize: "var(--font-md)",
-              background: "rgba(255,255,255,0.72)",
-              backdropFilter: "blur(1px)",
-            }}
-          >
-            <Loader2 size={18} className="animate-spin" />
-            LLM is thinking...
           </div>
         )}
         </div>

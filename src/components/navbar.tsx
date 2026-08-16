@@ -86,7 +86,6 @@ export const NavBar = () => {
                             </Button>
                         </Link>
                     ))}
-
                 </div>
             </div>
         </nav>

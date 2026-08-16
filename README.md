@@ -110,6 +110,48 @@ Download and install [Node.js](https://nodejs.org/) and [Git](https://git-scm.co
 6. **Upload your log CSV:**  
    Use the web interface to upload and analyze your log files.
 
+# Datasets
+
+The demo ships three datasets — **HDFS**, **BGL**, and **Thunderbird** — switchable
+from the picker in the navbar. The choice is remembered across pages and reloads,
+and `?dataset=BGL` on any URL opens the demo on that dataset directly.
+
+Each one lives in `public/data/<Dataset>/` as the same seven CSVs. These are the
+filenames the demo has always used — they simply moved one level down, from
+`public/` into the dataset they belong to:
+
+| File                                                       | Used by                                |
+| ---------------------------------------------------------- | -------------------------------------- |
+| `Krone_Tree.csv`                                           | Hierarchy Mining, Knowledge Base       |
+| `structured_processes.csv`                                 | log key → template labels, File Upload |
+| `krone_decompose_res.csv`                                  | Log Anomaly Detection                  |
+| `krone_train_decompose.csv`                                | Training Process                       |
+| `krone_detection_res.csv`                                  | Log Anomaly Detection                  |
+| `train_knowledge_all.csv`, `test_knowledge_all_fixed2.csv` | Knowledge Base, Cost Analysis          |
+
+`public/data/manifest.json` records the true row counts, which is what the
+"showing first N of M" notes report.
+
+## Regenerating the data
+
+These files are derived from the research outputs by `scripts/build_demo_data.py`,
+which drops columns the UI never reads and caps the row counts a browser can
+reasonably download. It reads from `data_raw/<Dataset>/` when present, and
+otherwise from the research repos beside this one:
+
+```sh
+python3 scripts/build_demo_data.py                      # all datasets
+python3 scripts/build_demo_data.py --datasets BGL       # just one
+KRONE_RESEARCH_ROOT=/path/to/Code python3 scripts/build_demo_data.py
+```
+
+`data_raw/` is gitignored — it holds the full-fidelity inputs, several hundred MB.
+
+To add a fourth dataset: add an entry to `DATASETS` in `scripts/build_demo_data.py`
+and to `DATASETS` in `src/datasets.ts`, then re-run the script. Nothing else in the
+app names a dataset. `src/unit_tests/dataset_data.test.ts` checks the generated
+files hold up the joins the pages depend on.
+
 # Technologies Used
 - React
 - Typescript

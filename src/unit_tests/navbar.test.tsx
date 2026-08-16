@@ -1,14 +1,17 @@
 import { render, screen} from "@testing-library/react";
 import { NavBar } from "@/components/navbar";
 import { BrowserRouter } from "react-router-dom";
+import { DatasetProvider } from "@/DatasetContext";
 
 //Navbar Unit Testing - Should load appropriate homepage, file upload, tree, log table, and about links correctly
 describe("Navbar Component", () => {
   it("renders navbar with logo and links", () => {
     render(
-      <BrowserRouter>
-        <NavBar />
-      </BrowserRouter>
+      <DatasetProvider>
+        <BrowserRouter>
+          <NavBar />
+        </BrowserRouter>
+      </DatasetProvider>
     );
 
     expect(screen.getByText("KRONE")).toBeInTheDocument();

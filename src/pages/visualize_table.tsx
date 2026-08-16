@@ -7,7 +7,7 @@ import type { HierarchyNode } from "d3-hierarchy";
 import type { TreeNode } from "@/tree_utils";
 import { SmallViewportWarning } from "@/components/smallViewportWarning";
 import { X } from "lucide-react";
-import { withBase } from "@/lib/base-url";
+import { useDataset } from "@/DatasetContext";
 
 
 // Data type for visualizing new tree
@@ -28,16 +28,12 @@ export type KroneDetectRow = {
 };
 
 type VisualizeTableProps = {
-    decomposeDataPath?: string;
+    /** Which of the active dataset's two decompose files to drive the page from. */
+    decomposeDataFile?: "krone_decompose_res" | "krone_train_decompose";
     sequenceTreeProps?: {
         selectStepLabel?: string;
-        selectControlLabel?: string;
         decomposeStepLabel?: string;
-        topDescriptionText?: string;
         hideDetectAndExplainSteps?: boolean;
-        hideSelectStep?: boolean;
-        singleSequenceSectionTitle?: string;
-        batchProcessingSectionTitle?: string;
         batchProcessingButtonLabel?: string;
         knowledgeBaseActionLabel?: string;
         knowledgeBaseActionButtons?: Array<{ id: string; label: string; toastMessage?: string }>;
@@ -147,9 +143,10 @@ const fetchKroneDetectData = async (filePath: string): Promise<KroneDetectRow[]>
 
 // Main Component
 export const VisualizeTable: React.FC<VisualizeTableProps> = ({
-    decomposeDataPath = "krone_decompose_res.csv",
+    decomposeDataFile = "krone_decompose_res",
     sequenceTreeProps,
 }) => {
+    const { fileFor, stats } = useDataset();
     const [kroneDecompData, setKroneDecompData] = useState<KroneDecompRow[]>([]);
     const [totalSequenceCount, setTotalSequenceCount] = useState(0);
     const [visibleSequenceCount, setVisibleSequenceCount] = useState(0);
@@ -158,18 +155,29 @@ export const VisualizeTable: React.FC<VisualizeTableProps> = ({
     const [showInfoSidebar, setShowInfoSidebar] = useState(false);
     const [multiLineAnomaly, setMultiLineAnomaly] = useState(false);
 
+    const decomposePath = fileFor(decomposeDataFile);
+    const detectionPath = fileFor("krone_detection_res");
+
+    // The shipped decompose CSVs are pre-sliced by scripts/build_demo_data.py, so
+    // the file itself no longer knows how many sequences the full run produced.
+    // manifest.json carries those counts, and they are what the "showing first N
+    // only" note reports.
+    const manifestTotal =
+        decomposeDataFile === "krone_train_decompose"
+            ? stats?.trainSequences.total
+            : stats?.testSequences.total;
 
     useEffect(() => {
-        fetchKroneDecompData(withBase(decomposeDataPath)).then((data) => {
+        fetchKroneDecompData(decomposePath).then((data) => {
             setKroneDecompData(data.rows);
             setTotalSequenceCount(data.totalCount);
             setVisibleSequenceCount(data.visibleCount);
         });
 
-        fetchKroneDetectData(withBase("krone_detection_res.csv")).then((data) => {
+        fetchKroneDetectData(detectionPath).then((data) => {
             setKroneDetectData(data);
         });
-    }, [decomposeDataPath]);
+    }, [decomposePath, detectionPath]);
 
     const handleNodeSelect = useCallback((node: HierarchyNode<TreeNode> | null) => {
         setHoveredNode(node);
@@ -214,18 +222,12 @@ export const VisualizeTable: React.FC<VisualizeTableProps> = ({
                     <div style={{ minWidth: 1600 }}>
                         <SequenceTree
                             kroneDecompData={kroneDecompData}
-                            totalSequenceCount={totalSequenceCount}
+                            totalSequenceCount={Math.max(manifestTotal ?? 0, totalSequenceCount)}
                             visibleSequenceCount={visibleSequenceCount}
                             kroneDetectData={kroneDetectData}
                             setHoveredNode={handleNodeSelect}
                             setMultiLineAnomaly={setMultiLineAnomaly}
                             multiLineAnomaly={multiLineAnomaly}
-                            topDescriptionText={
-                                sequenceTreeProps?.topDescriptionText ??
-                                (decomposeDataPath === "krone_decompose_res.csv"
-                                    ? "Explore how krone hierarchically detects a test log sequence"
-                                    : undefined)
-                            }
                             {...sequenceTreeProps}
                         />
                     </div>

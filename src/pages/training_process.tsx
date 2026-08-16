@@ -3,15 +3,11 @@ import { VisualizeTable } from "./visualize_table";
 export const TrainingProcess = () => {
   return (
     <VisualizeTable
-      decomposeDataPath="krone_train_decompose.csv"
+      decomposeDataFile="krone_train_decompose"
       sequenceTreeProps={{
         selectStepLabel: "1 Select a training log sequence",
-        selectControlLabel: "Select a training sequence:",
         decomposeStepLabel: "2 Decompose",
-        topDescriptionText: "Explore how krone hierarchically process the training set of normal log sequences",
         hideDetectAndExplainSteps: true,
-        singleSequenceSectionTitle: "Single Sequence",
-        batchProcessingSectionTitle: "Batch Processing",
         batchProcessingButtonLabel: "Process all training sequences",
         knowledgeBaseActionButtons: [
           {

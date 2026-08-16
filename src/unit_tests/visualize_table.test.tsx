@@ -2,14 +2,18 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { VisualizeTable } from "@/pages/visualize_table";
 import { BrowserRouter } from "react-router-dom";
+import { DatasetProvider } from "@/DatasetContext";
 import csvText from "@/assets/demo_data.csv?raw";
 import {vi} from 'vitest';
 
-// Mock fetch with correct typing
+// Mock fetch with correct typing. ok is needed as well as text: the page checks
+// response.ok before parsing, and DatasetProvider fetches manifest.json.
 beforeAll(() => {
     global.fetch = vi.fn(() =>
         Promise.resolve({
+            ok: true,
             text: () => Promise.resolve(csvText),
+            json: () => Promise.resolve({ datasets: [] }),
         })
     ) as unknown as typeof fetch;
 });
@@ -19,9 +23,11 @@ describe("VisualizeTable Component", () => {
         const user = userEvent.setup();
 
         render(
-            <BrowserRouter>
-                <VisualizeTable />
-            </BrowserRouter>
+            <DatasetProvider>
+                <BrowserRouter>
+                    <VisualizeTable />
+                </BrowserRouter>
+            </DatasetProvider>
         );
 
         const button = await screen.findByRole("button", { name: "run button" });

@@ -13,15 +13,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { withBase } from "@/lib/base-url";
+import { DATASETS, datasetFile } from "@/datasets";
 
-// Dataset options
-const datasets = [
-    { value: "HDFS", label: "HDFS", path: "demo_data_hdfs.csv" },
-    { value: "BGL", label: "BGL", path: "demo_data_bgl.csv" },
-    { value: "ThunderBird", label: "ThunderBird", path: "demo_data_thunderbird.csv" },
-    { value: "IaaS", label: "IaaS (Industry)", path: "demo_data_iaas.csv" },
-];
+// The demo's own log template sets, offered as an alternative to uploading one.
+// These used to be four hardcoded demo_data_*.csv paths, none of which were ever
+// added to public/, so every option here failed to load.
+const datasets = DATASETS.map((dataset) => ({
+    value: dataset.key,
+    label: dataset.label,
+    path: datasetFile(dataset.key, "structured_processes"),
+}));
 
 // Selection component
 function SelectDemo({ onSelect }: { onSelect: (value: string) => void }) {
@@ -85,7 +86,7 @@ export const FileUpload = () => {
         }
 
         try {
-            const response = await fetch(withBase(dataset.path));
+            const response = await fetch(dataset.path);
             if (!response.ok) throw new Error("Failed to fetch dataset");
             const csvText = await response.text();
 
