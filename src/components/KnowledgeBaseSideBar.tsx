@@ -204,8 +204,8 @@ export function SequenceUnitDisplay({
                                 padding: "2px 10px",
                                 borderRadius: 999,
                                 border: seq.isAnomaly ? "1px solid #fecaca" : "1px solid #bbf7d0",
-                                background: seq.isAnomaly ? "#fef2f2" : "#f0fdf4",
-                                color: seq.isAnomaly ? "#b91c1c" : "#166534",
+                                background: seq.isAnomaly ? "var(--sem-anomaly-fill)" : "var(--sem-normal-fill)",
+                                color: seq.isAnomaly ? "var(--sem-anomaly)" : "var(--sem-normal)",
                                 fontSize: "var(--font-sm)",
                                 fontWeight: 600,
                                 lineHeight: 1,
@@ -224,7 +224,7 @@ export function SequenceUnitDisplay({
                         type="button"
                         onClick={() => { setCollapsibility((prev) => !prev); }}
                         aria-label={showCollapsed ? "Expand card" : "Collapse card"}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 hover:text-black transition-colors flex items-center justify-center"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-[var(--control-h)] w-[var(--control-h)] rounded-full border border-neutral-300 bg-white text-neutral-600 hover:bg-neutral-50 hover:text-black transition-colors flex items-center justify-center"
                     >
                         <ChevronDown className={`h-4 w-4 transition-transform ${showCollapsed ? "rotate-0" : "rotate-180"}`} />
                     </button>
@@ -508,7 +508,7 @@ function SequenceScrollable({
                 </div>
             )}
             <div style={{ marginBottom: 16 }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div className="segmented" role="group" aria-label="Data scope">
                     {[
                         { id: "all", label: "All" },
                         { id: "train", label: "Training only" },
@@ -519,19 +519,9 @@ function SequenceScrollable({
                             <button
                                 key={scope.id}
                                 type="button"
+                                className="btn btn-ghost"
+                                aria-pressed={isActive}
                                 onClick={() => setDataScope(scope.id as DataScope)}
-                                style={{
-                                    height: 30,
-                                    padding: "0 12px",
-                                    borderRadius: 999,
-                                    border: isActive ? "1px solid #fdba74" : "1px solid #d6d6d6",
-                                    background: isActive ? "#fff7ed" : "#fff",
-                                    color: isActive ? "#9a3412" : "#475569",
-                                    fontSize: "var(--font-sm)",
-                                    fontWeight: 400,
-                                    cursor: "pointer",
-                                    whiteSpace: "nowrap",
-                                }}
                             >
                                 {scope.label}
                             </button>
@@ -766,7 +756,7 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
                         placeholder={LOGKEY_SEARCH_PLACEHOLDER}
                         value={searchLogKey}
                         onChange={(e) => setSearchLogKey(e.target.value)}
-                        className="w-full h-[34px] px-3 pr-10 bg-white border border-[var(--table-cell-border)] rounded-md placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                        className="w-full h-[var(--control-h)] px-3 pr-10 bg-white border border-[var(--table-cell-border)] rounded-md placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
                     />
                     <button type="submit" className="absolute top-1/2 right-3 transform -translate-y-1/2">
                         <Search className="w-4 h-4 text-neutral-400 hover:text-black" />
@@ -828,17 +818,8 @@ export const KnowledgeBaseSideBar: React.FC<KnowledgeBaseSideBarProps> = ({
                     <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 16px 16px 16px" }}>
                         <button
                             type="button"
+                            className="btn btn-lg btn-sq btn-primary"
                             onClick={() => setScopeDialogMessage(null)}
-                            style={{
-                                height: 32,
-                                padding: "0 14px",
-                                borderRadius: 8,
-                                border: "1px solid #cbd5e1",
-                                background: "#fff",
-                                color: "#334155",
-                                fontSize: "var(--font-sm)",
-                                cursor: "pointer",
-                            }}
                         >
                             OK
                         </button>

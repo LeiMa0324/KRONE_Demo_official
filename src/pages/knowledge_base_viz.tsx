@@ -6,7 +6,12 @@ import { VizTree } from "@/components/viz_tree_components/viz_tree/viz_tree";
 import { buildTree } from "@/tree_utils";
 import type { TreeNode } from "@/tree_utils";
 import { SmallViewportWarning } from "@/components/smallViewportWarning";
-import { withBase } from "@/lib/base-url";
+import { useDataset } from "@/DatasetContext";
+import { DatasetChip } from "@/components/dataset_selector";
+import { StageHeader } from "@/components/stage_header";
+import { useStageComplete } from "@/components/next_stage";
+import { useKnowledgeBaseAdditions } from "@/KnowledgeBaseAdditions";
+import type { KroneSeqAddition } from "@/KnowledgeBaseAdditions";
 
 //CONSTANTS
 const KNOWLEDGE_BASE_DESC = "Explore the knowledge base by interacting with the visualization below. Click on a node to query its child Krone-seqs."
@@ -63,6 +68,24 @@ function parseListField(field: string): string[] {
     return field.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+/**
+ * logkey_seq is the one column that arrives bracketed -- "[11, 11, 1, 1]" --
+ * while the identifier columns do not ("none_38,none_40"). Splitting it on
+ * commas alone left the brackets glued to the end tokens, so the stored
+ * sequence was ["[11", "11", "1", "1]"] and could never equal anything a
+ * search produced: typing 11,11,1,1 in the sidebar matched nothing, and
+ * neither did the log keys handed over from the detection page, which strip
+ * brackets when it parses the same numbers.
+ */
+export function parseLogKeySeqField(field: string): string[] {
+    if (!field || field.trim() === "") return [];
+    return field
+        .replace(/[[\]'"]/g, "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
 // -- parseEmbeddingField function -- Parses embedding field of csv file and returns them as array of number 
 function parseEmbeddingField(field: string): number[] {
     if (!field || field.trim() === "") return [];
@@ -85,7 +108,7 @@ function parseEmbeddingField(field: string): number[] {
 // -- buildKnowledgeStructures function -- Takes array of CSVRow's and constructs an Entity Dictionary which takes an
 // entity query and returns the list of sequence children, an actionDict that does the same for actions, and a list
 // of allSequences and entitySequences
-function buildKnowledgeStructures(rows: CSVRow[]): {
+export function buildKnowledgeStructures(rows: CSVRow[]): {
     entityDict: EntityDict;
     actionDict: ActionDict;
     entitySequences: EntitySequences;
@@ -101,7 +124,7 @@ function buildKnowledgeStructures(rows: CSVRow[]): {
         const entity_id = row.entity_identifier?.trim();
         const action_id = row.action_identifier?.trim();
         const status_id = row.status_identifier?.trim();
-        const logkey_seq = parseListField(row.logkey_seq || "");
+        const logkey_seq = parseLogKeySeqField(row.logkey_seq || "");
         const explanation = row.path_reason || "";
         const seqType = path_layer || "";
 
@@ -143,7 +166,7 @@ function buildKnowledgeStructures(rows: CSVRow[]): {
 }
 
 // -- parseKnowledgeCSV Function -- Parses knowledge base csv and returns callback with build knowledge structures
-function parseKnowledgeCSV(
+export function parseKnowledgeCSV(
     csvText: string,
     callback: (structures: { entityDict: EntityDict; actionDict: ActionDict; entitySequences: EntitySequences; allSequences: Seq[] }) => void
 ) {
@@ -215,6 +238,82 @@ function getSeqForQuery(
     return [];
 }
 
+/**
+ * Folds the session's added Krone-seqs into what was loaded from CSV.
+ *
+ * Returns new objects rather than mutating: the parsed structures are state,
+ * and the merged view is derived from them plus the additions, so removing an
+ * addition (or switching dataset) recomputes cleanly.
+ */
+export function mergeAdditionsIntoKnowledge(
+    data: KnowledgeBaseData,
+    additions: KroneSeqAddition[]
+): KnowledgeBaseData {
+    if (!additions.length) return data;
+
+    const entityDict: EntityDict = { ...data.entityDict };
+    const actionDict: ActionDict = { ...data.actionDict };
+
+    for (const addition of additions) {
+        const seq: Seq = {
+            arr: addition.nodeSequence,
+            explanation: addition.explanation,
+            seqType: "STATUS",
+            isAnomaly: addition.isAnomaly,
+            logkey_seq: addition.logKeys,
+            embedding: [],
+            path_summary: "",
+        };
+        actionDict[addition.actionId] = [...(actionDict[addition.actionId] ?? []), seq];
+    }
+
+    return { entityDict, actionDict, entitySequences: data.entitySequences };
+}
+
+/**
+ * Creates the tree path an addition hangs off, level by level, for the case the
+ * shipped tree has no node with that id -- which is common, because the tree and
+ * the knowledge base were generated with independent node numbering.
+ */
+export function applyAdditionsToTree(tree: TreeNode | null, additions: KroneSeqAddition[]): TreeNode | null {
+    if (!tree || !additions.length) return tree;
+
+    // One shallow clone of the spine; the additions then graft onto it.
+    const clone = (node: TreeNode): TreeNode => ({ ...node, children: node.children?.map(clone) });
+    const root = clone(tree);
+
+    for (const addition of additions) {
+        root.children ??= [];
+        let entityNode = root.children.find((child) => child.name === addition.entityId);
+        if (!entityNode) {
+            entityNode = { name: addition.entityId, children: [], isAddedInSession: true };
+            root.children.push(entityNode);
+        }
+
+        entityNode.children ??= [];
+        let actionNode = entityNode.children.find((child) => child.name === addition.actionId);
+        if (!actionNode) {
+            actionNode = { name: addition.actionId, children: [], isAddedInSession: true };
+            entityNode.children.push(actionNode);
+        }
+
+        actionNode.children ??= [];
+        for (const statusNode of addition.statusNodes) {
+            if (actionNode.children.some((child) => child.name === statusNode.name)) continue;
+            actionNode.children.push({
+                name: statusNode.name,
+                event_id: statusNode.eventId,
+                log_template: statusNode.logTemplate,
+                isAnomaly: addition.isAnomaly,
+                anomalyReason: addition.explanation,
+                isAddedInSession: true,
+            });
+        }
+    }
+
+    return root;
+}
+
 function buildSequenceStatsLookup(
     trainingData: KnowledgeBaseData,
     testingData: KnowledgeBaseData,
@@ -267,6 +366,10 @@ function attachSequenceStatsToTree(tree: TreeNode, lookup: SequenceStatsLookup):
 
 // Full Knowlege Base Visualization Component - Includes tree and navbar
 export const KnowledgeBaseViz = () => {
+    const { fileFor, stats, dataset } = useDataset();
+    const isSampled = Boolean(
+        stats?.knowledge.train.sampled || stats?.knowledge.test.sampled
+    );
 
     /* -- STATES -- */
     const [knowledgeStructures, setKnowledgeStructures] = useState<{
@@ -283,19 +386,43 @@ export const KnowledgeBaseViz = () => {
     const [selectedQuery, setSelectedQuery] = useState<string | null>(null);
     const [searchLogKey, setSearchLogKey] = useState<string>("");
     const [dataScope, setDataScope] = useState<DataScope>("all");
+    // What this session added, folded in on top of what the CSVs shipped. A save
+    // on the detection page lands in the test knowledge base, which is where a
+    // verified anomaly belongs.
+    const { additions } = useKnowledgeBaseAdditions();
+    const datasetAdditions = useMemo(
+        () => additions.filter((addition) => addition.dataset === dataset),
+        [additions, dataset]
+    );
+
+    const mergedTree = useMemo(
+        () => applyAdditionsToTree(rawTreeData, datasetAdditions),
+        [rawTreeData, datasetAdditions]
+    );
+    const mergedTestingData = useMemo(
+        () => (knowledgeStructures.testingData
+            ? mergeAdditionsIntoKnowledge(knowledgeStructures.testingData, datasetAdditions)
+            : null),
+        [knowledgeStructures.testingData, datasetAdditions]
+    );
+
     const sequenceStatsLookup = useMemo(() => {
-        if (!rawTreeData || !knowledgeStructures.trainingData || !knowledgeStructures.testingData) return null;
+        if (!mergedTree || !knowledgeStructures.trainingData || !mergedTestingData) return null;
         return buildSequenceStatsLookup(
             knowledgeStructures.trainingData,
-            knowledgeStructures.testingData,
-            rawTreeData,
+            mergedTestingData,
+            mergedTree,
             dataScope
         );
-    }, [rawTreeData, knowledgeStructures.trainingData, knowledgeStructures.testingData, dataScope]);
+    }, [mergedTree, knowledgeStructures.trainingData, mergedTestingData, dataScope]);
     const treeData = useMemo(() => {
-        if (!rawTreeData || !sequenceStatsLookup) return rawTreeData;
-        return attachSequenceStatsToTree(rawTreeData, sequenceStatsLookup);
-    }, [rawTreeData, sequenceStatsLookup]);
+        if (!mergedTree || !sequenceStatsLookup) return mergedTree;
+        return attachSequenceStatsToTree(mergedTree, sequenceStatsLookup);
+    }, [mergedTree, sequenceStatsLookup]);
+
+    // This page is read-only -- there is nothing to click through -- so the
+    // hand-off to cost analysis lights up as soon as there is a tree to read.
+    useStageComplete(!!treeData);
 
     /* -- LOCAL FUNCTIONS -- */
     const toggleSidebar = () => {
@@ -337,8 +464,8 @@ export const KnowledgeBaseViz = () => {
     // On component mount fetches the training and testing knowledge and builds their respective knowledge structures
     useEffect(() => {
         Promise.all([
-            fetch(withBase("train_knowledge_all.csv")).then(res => res.text()),
-            fetch(withBase("test_knowledge_all_fixed2.csv")).then(res => res.text()),
+            fetch(fileFor("train_knowledge_all")).then(res => res.text()),
+            fetch(fileFor("test_knowledge_all_fixed2")).then(res => res.text()),
         ])
             .then(([trainCSV, testCSV]) => {
                 let trainStructures: ReturnType<typeof buildKnowledgeStructures>;
@@ -378,15 +505,15 @@ export const KnowledgeBaseViz = () => {
                 });
             })
             .catch((error) => console.error("Error loading CSV files:", error));
-    }, []);
+    }, [fileFor]);
 
     useEffect(() => {
-        fetch(withBase("Krone_Tree.csv"))
+        fetch(fileFor("Krone_Tree"))
             .then(res => res.text())
             .then(csvText => {
                 setRawTreeData(buildTree(Papa.parse(csvText, { header: true }).data as CSVRow[]));
             });
-    }, []);
+    }, [fileFor]);
 
     return (
         <div
@@ -435,17 +562,32 @@ export const KnowledgeBaseViz = () => {
                                 marginBottom: 12,
                             }}
                         >
-                            <div
-                                style={{
-                                    width: "100%",
-                                    padding: "18px 20px 16px 20px",
-                                    borderBottom: "1px solid #edf1f5",
-                                }}
-                            >
-                                <p style={{ margin: 0, fontSize: "var(--font-sm)", color: "var(--text-label)" }}>
-                                    {KNOWLEDGE_BASE_DESC}
-                                </p>
-                            </div>
+                            {/* This page consumes the knowledge base rather than
+                                building it, so its actions row is empty -- but it
+                                keeps its height, which is what holds the tree at
+                                the same y as on the three pages before it. */}
+                            <StageHeader
+                                context={
+                                    <>
+                                        <DatasetChip />
+                                        <span aria-hidden="true" style={{ color: "var(--n-300)" }}>|</span>
+                                        <span>
+                                            <b style={{ color: "var(--n-900)", fontWeight: 600 }}>
+                                                {knowledgeStructures.allSequences.length}
+                                            </b> Krone-seqs
+                                        </span>
+                                    </>
+                                }
+                                explanation={
+                                    <>
+                                        {KNOWLEDGE_BASE_DESC}
+                                        {isSampled && (
+                                            <> The demo ships a sample of this knowledge base, chosen to keep as many
+                                            distinct patterns as it can.</>
+                                        )}
+                                    </>
+                                }
+                            />
                         </div>
                         {treeData && (
                             <VizTree
@@ -467,12 +609,12 @@ export const KnowledgeBaseViz = () => {
                         )}
                     </div>
                 </div>
-                {knowledgeStructures.trainingData && knowledgeStructures.testingData && (
+                {knowledgeStructures.trainingData && mergedTestingData && (
                     <KnowledgeBaseSideBar
                         showSidebar={showSidebar}
                         toggleSidebar={toggleSidebar}
                         trainingData={knowledgeStructures.trainingData}
-                        testingData={knowledgeStructures.testingData}
+                        testingData={mergedTestingData}
                         query={
                             selectedQuery
                                 ? selectedQuery === ROOT_QUERY
