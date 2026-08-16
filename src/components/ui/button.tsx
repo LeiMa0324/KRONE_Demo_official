@@ -21,11 +21,14 @@ const buttonVariants = cva(
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
       },
+      // Heights come from --control-h so these line up with the .btn / .step-chip
+      // controls on the data pages; the sizes differ in padding, not height.
+      // The hero CTA opts out with an explicit h-auto.
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
+        default: "h-[var(--control-h)] px-4 py-2 has-[>svg]:px-3",
+        sm: "h-[var(--control-h)] rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-[var(--control-h)] rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-[var(--control-h)]",
       },
     },
     defaultVariants: {

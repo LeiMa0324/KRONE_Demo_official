@@ -5,8 +5,9 @@ import { highlightRelated, resetHighlight } from "../viz_tree_utils";
 import {
   getFontSize,
   getPadding,
-  NODE_STYLE_STROKE,
   isNodeHidden,
+  linkStroke,
+  nodeInk,
 } from "../../../tree_utils";
 import { type TreeNode } from "../../../tree_utils";
 import type { TreeLink } from "../types";
@@ -65,7 +66,6 @@ export function drawVizTree({
   onNodeClick,
 }: DrawVizTreeParams) {
   const levelLabels = ["Entity", "Action", "Status"];
-  const linkColor = NODE_STYLE_STROKE;
   const labelFontSize = 15;
   const labelToTreeGap = 8;
   const svgRightPadding = 120;
@@ -136,7 +136,8 @@ export function drawVizTree({
       .attr("text-anchor", "start")
       .attr("font-size", labelFontSize)
       .attr("font-weight", "bold")
-      .attr("fill", "#000")
+      // Level captions take their own level's ink, matching the node tint below.
+      .attr("fill", (_d, i) => nodeInk(i + 1))
       .attr("opacity", (_d, i) => {
         const nodesAtDepth = root.descendants().filter(d => d.depth === i + 1 && !isNodeHidden(d));
         return nodesAtDepth.length === 0 ? 0 : 1;
@@ -145,8 +146,9 @@ export function drawVizTree({
   }
  
 
-  // Draw links
-  svg.append("g").attr("fill", "none").attr("stroke-width", 1.5)
+  // Draw links. Each edge takes the tint of the level it descends into, so a
+  // branch fades outward and can be followed by tone alone.
+  svg.append("g").attr("fill", "none").attr("stroke-width", 1.2)
     .selectAll<SVGPathElement, TreeLink>("path")
     .data(root.links())
     .join("path")
@@ -164,8 +166,41 @@ export function drawVizTree({
         `H${targetY}`
       ].join(" ");
     })
-    .attr("stroke", linkColor)
+    .attr("stroke", (d: TreeLink) => linkStroke(d.source.depth))
     .attr("opacity", d => (isNodeHidden(d.source) || isNodeHidden(d.target)) ? 0 : 1);
+
+  // Full-width hover bands for leaf rows.
+  //
+  // A status node, its log key and its template sit up to ~1400px apart. With
+  // nothing tying them together the eye slips to the neighbouring row on the
+  // way across, so each leaf gets a band spanning the whole canvas that lights
+  // up on hover.
+  const rowBandHeight = 22;
+  svg.append("g")
+    .attr("class", "row-bands")
+    .selectAll<SVGRectElement, HierarchyNode<TreeNode>>("rect")
+    .data(root.descendants().filter(d => d.depth === 3 && !isNodeHidden(d)))
+    .join("rect")
+    .attr("x", 0)
+    .attr("y", d => (d.x ?? 0) + labelFontSize + labelToTreeGap - rowBandHeight / 2)
+    .attr("width", expandedSvgWidth)
+    .attr("height", rowBandHeight)
+    .attr("fill", "transparent")
+    .attr("pointer-events", "all")
+    .on("mouseover", function (_event: MouseEvent, d: HierarchyNode<TreeNode>) {
+      select(this).attr("fill", "var(--n-100)");
+      if (disableHoverHighlight) return;
+      highlightRelated(svg, d);
+    })
+    .on("mouseout", function () {
+      select(this).attr("fill", "transparent");
+      if (disableHoverHighlight) return;
+      if (persistentHighlightNode) {
+        highlightRelated(svg, persistentHighlightNode);
+      } else {
+        resetHighlight(svg);
+      }
+    });
 
   // Draw nodes
   const node = svg.append("g")
@@ -197,7 +232,7 @@ export function drawVizTree({
     .attr("x", (d: HierarchyNode<TreeNode>) => getFontSize(d.depth) * 0.2)
     .attr("text-anchor", "start")
     .text((d: HierarchyNode<TreeNode>) => d.data.name)
-    .attr("fill", "#000")
+    .attr("fill", (d: HierarchyNode<TreeNode>) => nodeInk(d.depth))
     .attr("font-size", (d: HierarchyNode<TreeNode>) => getFontSize(d.depth))
     .each(function (this: SVGTextElement, d: HierarchyNode<TreeNode>) {
       decorateNode.call(
@@ -228,8 +263,10 @@ export function drawVizTree({
         const badgeX = bbox.x + bbox.width + getPadding(fontSize) + 10;
         const centerY = bbox.y + bbox.height / 2;
 
+        // Counts carry a leading glyph as well as a colour: red/green alone is
+        // not a readable distinction for red-green colour vision deficiency.
         const drawBadge = (text: string, y: number, style: { fill: string; stroke: string; color: string }) => {
-          const badgeWidth = Math.max(22, Math.ceil(text.length * badgeFontSize * 0.58) + 8);
+          const badgeWidth = Math.max(26, Math.ceil(text.length * badgeFontSize * 0.6) + 10);
           nodeGroup.append("rect")
             .attr("x", badgeX)
             .attr("y", y)
@@ -253,9 +290,9 @@ export function drawVizTree({
 
         if (total === 0) {
           drawBadge("0", centerY - badgeHeight / 2, {
-            fill: "#f8fafc",
-            stroke: "#cbd5e1",
-            color: "#475569",
+            fill: "var(--n-50)",
+            stroke: "var(--n-300)",
+            color: "var(--n-500)",
           });
         } else {
           const hasNormal = normalCount > 0;
@@ -264,18 +301,18 @@ export function drawVizTree({
           const bottomY = centerY + badgeGapY / 2;
 
           if (hasNormal) {
-            drawBadge(String(normalCount), topY, {
-              fill: "#f0fdf4",
-              stroke: "#86efac",
-              color: "#166534",
+            drawBadge(`● ${normalCount}`, topY, {
+              fill: "var(--sem-normal-fill)",
+              stroke: "var(--sem-normal-stroke)",
+              color: "var(--sem-normal)",
             });
           }
 
           if (hasAbnormal) {
-            drawBadge(String(abnormalCount), bottomY, {
-              fill: "#fef2f2",
-              stroke: "#fca5a5",
-              color: "#b91c1c",
+            drawBadge(`▲ ${abnormalCount}`, bottomY, {
+              fill: "var(--sem-anomaly-fill)",
+              stroke: "var(--sem-anomaly-stroke)",
+              color: "var(--sem-anomaly)",
             });
           }
         }
@@ -289,7 +326,7 @@ export function drawVizTree({
           .attr("text-anchor", "start")
           .attr("alignment-baseline", "middle")
           .attr("font-size", Math.max(fontSize * 0.9, 12))
-          .attr("fill", "#475569")
+          .attr("fill", "var(--n-700)")
           .style("white-space", "nowrap")
           .text(d.data.event_id || "-");
 
@@ -308,7 +345,7 @@ export function drawVizTree({
             .attr("text-anchor", "start")
             .attr("alignment-baseline", "middle")
             .attr("font-size", Math.max(fontSize * 0.9, 12))
-            .attr("fill", "#475569")
+            .attr("fill", "var(--n-700)")
             .style("white-space", "nowrap")
             .text(displayedTemplate);
 
@@ -328,23 +365,36 @@ export function drawVizTree({
                 onToggleTemplateExpand?.(d);
               });
 
-            buttonGroup.append("rect")
+            // One of these sits on every long row, and filled pills stacked
+            // into a solid vertical stripe of colour. Quiet by default; the
+            // colour arrives on hover, where it means something.
+            const buttonRect = buttonGroup.append("rect")
               .attr("width", buttonWidth)
               .attr("height", buttonHeight)
               .attr("rx", 9)
               .attr("ry", 9)
-              .attr("fill", "#f0f9ff")
-              .attr("stroke", "#bae6fd");
+              .attr("fill", "transparent")
+              .attr("stroke", "var(--n-300)");
 
-            buttonGroup.append("text")
+            const buttonText = buttonGroup.append("text")
               .attr("x", buttonWidth / 2)
               .attr("y", buttonHeight / 2)
               .attr("text-anchor", "middle")
               .attr("alignment-baseline", "middle")
               .attr("font-size", 12)
-              .attr("font-weight", 600)
-              .attr("fill", "#0369a1")
+              .attr("font-weight", 500)
+              .attr("fill", "var(--n-500)")
               .text(buttonLabel);
+
+            buttonGroup
+              .on("mouseenter", () => {
+                buttonRect.attr("fill", "var(--sem-kb-fill)").attr("stroke", "var(--sem-kb-stroke)");
+                buttonText.attr("fill", "var(--sem-kb)");
+              })
+              .on("mouseleave", () => {
+                buttonRect.attr("fill", "transparent").attr("stroke", "var(--n-300)");
+                buttonText.attr("fill", "var(--n-500)");
+              });
           }
         }
       }

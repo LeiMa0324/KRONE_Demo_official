@@ -14,14 +14,14 @@ export const titleStyle = {
   fontSize: "var(--font-xl)",
   marginBottom: 12,
   letterSpacing: 0.2,
-  color: "#222",
+  color: "var(--n-900)",
   textAlign: "center" as const,
 };
 
 export const infoStyle = {
   fontSize: "var(--font-md)",
   marginBottom: 8,
-  color: "#333",
+  color: "var(--n-700)",
   textAlign: "left" as const,
 };
 
@@ -34,18 +34,18 @@ export const logKeyStyle = {
 export const logTemplateStyle = {
   fontWeight: 400,
   fontSize: "var(--font-sm)",
-  color: "#555",
+  color: "var(--n-700)",
   marginTop: 6,
 };
 
 export const logLabelStyle = {
-  color: "#888",
+  color: "var(--n-500)",
 };
 
 export const buttonStyle = {
   marginTop: 16,
   padding: "5px 12px",
-  background: "#c8102e",
+  background: "var(--brand-600)",
   color: "#fff",
   border: "none",
   borderRadius: 5,

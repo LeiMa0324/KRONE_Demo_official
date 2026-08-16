@@ -86,7 +86,7 @@ export const LogKeySearch: React.FC<{
                     </span>
                     <span
                       style={{
-                        color: "#888",
+                        color: "var(--n-500)",
                         fontSize: "0.95em",
                         whiteSpace: "normal",
                         wordBreak: "break-word",
@@ -104,7 +104,7 @@ export const LogKeySearch: React.FC<{
       </Command>
     </div>
     {search.value && !search.matchedNodeId && (
-      <div style={{ color: "#b00", fontSize: "0.95rem" }}>No status node found.</div>
+      <div style={{ color: "var(--sem-anomaly)", fontSize: "0.95rem" }}>No status node found.</div>
     )}
     <Button type="submit" style={{ marginTop: 8 }} disabled={!search.input.trim()}>Search Log Key</Button>
   </form>

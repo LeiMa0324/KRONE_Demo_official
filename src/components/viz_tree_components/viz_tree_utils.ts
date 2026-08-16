@@ -2,7 +2,7 @@ import { select, type Selection } from "d3-selection";
 import type { HierarchyNode } from "d3-hierarchy";
 import type { TreeNode } from "../../tree_utils";
 import type { HierarchyNodeWithHiddenChildren, TreeLink } from "./types";
-import { NODE_STYLE_FILL, NODE_STYLE_STROKE } from "../../tree_utils";
+import { linkStroke, nodeFill, nodeInk, nodeStroke } from "../../tree_utils";
 
 
 export function hasHiddenChildren(node: HierarchyNode<TreeNode>): node is HierarchyNodeWithHiddenChildren<TreeNode> {
@@ -28,11 +28,17 @@ export function getAncestors(node: HierarchyNode<TreeNode>): Set<HierarchyNode<T
   return ancestors;
 }
 
+/**
+ * Dim everything that is not on the hovered node's ancestor path.
+ *
+ * Both this and resetHighlight restore node styling from the node's own depth
+ * rather than a single flat colour, so the Entity/Action/Status tinting
+ * survives a hover-and-leave cycle.
+ */
 export function highlightRelated(
   svg: Selection<SVGSVGElement, unknown, null, undefined>,
   node: HierarchyNode<TreeNode>
 ): void {
-  const linkColor = NODE_STYLE_STROKE;
   const ancestors = getAncestors(node);
   const relatedTemplateRows = new Set(
     node.descendants().filter((descendant) => descendant.depth === 3)
@@ -42,19 +48,23 @@ export function highlightRelated(
     .each(function (n) {
       const isRelated = ancestors.has(n);
       select<SVGTextElement, HierarchyNode<TreeNode>>(this)
-        .attr("fill", isRelated ? "var(--highlight-text)" : "#000");
+        .attr("fill", isRelated ? "var(--highlight-text)" : nodeInk(n.depth))
+        .attr("opacity", isRelated ? 1 : 0.55);
       select(this.parentNode as SVGElement).select("rect")
-        .attr("fill", isRelated ? "var(--highlight-fill)" : NODE_STYLE_FILL)
-        .attr("stroke", isRelated ? "var(--highlight-fill)" : NODE_STYLE_STROKE)
-        .attr("stroke-width", isRelated ? 5 : 2);
+        .attr("fill", isRelated ? "var(--highlight-fill)" : nodeFill(n.depth))
+        .attr("stroke", isRelated ? "var(--highlight-border)" : nodeStroke(n.depth))
+        .attr("stroke-width", isRelated ? 2.5 : 1)
+        .attr("opacity", isRelated ? 1 : 0.55);
     });
 
   svg.selectAll<SVGPathElement, TreeLink>("path")
-    .attr("stroke", linkColor)
+    .attr("stroke", lnk => {
+      const isAncestorPath = ancestors.has(lnk.source) && ancestors.has(lnk.target);
+      return isAncestorPath ? "var(--highlight-border)" : linkStroke(lnk.source.depth);
+    })
     .attr("stroke-width", lnk => {
-      const isAncestorPath =
-        ancestors.has(lnk.source) && ancestors.has(lnk.target);
-      return isAncestorPath ? 5 : 2;
+      const isAncestorPath = ancestors.has(lnk.source) && ancestors.has(lnk.target);
+      return isAncestorPath ? 2.5 : 1.2;
     });
 
   svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-template-id, text.node-template")
@@ -62,27 +72,36 @@ export function highlightRelated(
       const isRelated = relatedTemplateRows.has(n);
       select<SVGTextElement, HierarchyNode<TreeNode>>(this)
         .attr("fill", isRelated ? "var(--highlight-text)" : "var(--table-cell-muted-text)")
-        .attr("font-weight", isRelated ? 700 : 400);
+        .attr("font-weight", isRelated ? 700 : 400)
+        .attr("opacity", isRelated ? 1 : 0.55);
     });
 }
 
 export function resetHighlight(
   svg: Selection<SVGSVGElement, unknown, null, undefined>
 ): void {
-  const linkColor = NODE_STYLE_STROKE;
   svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-label")
-    .attr("fill", "#000");
+    .attr("fill", n => nodeInk(n.depth))
+    .attr("opacity", 1);
   svg.selectAll<SVGGElement, HierarchyNode<TreeNode>>("g")
-    .select("rect")
-    .attr("fill", NODE_STYLE_FILL)
-    .attr("stroke", NODE_STYLE_STROKE)
-    .attr("stroke-width", 2);
+    .select<SVGRectElement>("rect")
+    .attr("fill", function () {
+      const datum = select<SVGElement, HierarchyNode<TreeNode>>(this.parentNode as SVGElement).datum();
+      return nodeFill(datum?.depth ?? 0);
+    })
+    .attr("stroke", function () {
+      const datum = select<SVGElement, HierarchyNode<TreeNode>>(this.parentNode as SVGElement).datum();
+      return nodeStroke(datum?.depth ?? 0);
+    })
+    .attr("stroke-width", 1)
+    .attr("opacity", 1);
   svg.selectAll<SVGPathElement, TreeLink>("path")
-    .attr("stroke", linkColor)
-    .attr("stroke-width", 2);
+    .attr("stroke", lnk => linkStroke(lnk.source.depth))
+    .attr("stroke-width", 1.2);
   svg.selectAll<SVGTextElement, HierarchyNode<TreeNode>>("text.node-template-id, text.node-template")
     .attr("fill", "var(--table-cell-muted-text)")
-    .attr("font-weight", 400);
+    .attr("font-weight", 400)
+    .attr("opacity", 1);
 }
 
 

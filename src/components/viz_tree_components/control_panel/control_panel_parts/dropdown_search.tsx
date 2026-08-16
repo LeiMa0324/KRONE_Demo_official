@@ -50,12 +50,15 @@ export const DropdownSearchBar: React.FC<{
           style={{
             position: "absolute",
             right: 10,
-            top: 8,
+            // Centred rather than pinned 8px down, so it follows --control-h.
+            top: "50%",
+            transform: "translateY(-50%)",
+            lineHeight: 1,
             background: "none",
             border: "none",
             fontSize: "1.1rem",
             cursor: "pointer",
-            color: "#888",
+            color: "var(--n-500)",
             zIndex: 2,
           }}
         >

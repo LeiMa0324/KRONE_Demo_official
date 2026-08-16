@@ -9,9 +9,6 @@ import {
   getCssVar,
   getWidestByDepth,
   getFontSize,
-  ENTITY_BORDER,
-  ACTION_BORDER,
-  STATUS_BORDER,
 } from "../../../tree_utils";
 import type { 
   VizTreeProps,
@@ -32,6 +29,15 @@ const SVG_PADDING = 200;
 const COLLAPSED_WIDTH_PADDING = 20;
 const MIN_ROOT_WIDTH = 400;
 const DIV_STYLE = { flex: 1, width: "100%", height: "100%", overflow: "auto" };
+const LEVEL_HEADER_BASE: React.CSSProperties = {
+  position: "absolute",
+  top: 10,
+  paddingBottom: 4,
+  fontSize: "var(--font-sm)",
+  fontWeight: 700,
+  letterSpacing: "0.01em",
+  whiteSpace: "nowrap",
+};
 const TEMPLATE_ID_COLUMN_GAP = 32;
 const TEMPLATE_COLUMN_GAP = 48;
 const HEADER_FONT_SIZE = 15;
@@ -273,57 +279,38 @@ export const VizTree: React.FC<VizTreeProps> = ({
             position: "sticky",
             top: 0,
             zIndex: 5,
-            background: "#f8fafc",
-            borderBottom: "1px solid #e2e8f0",
+            background: "var(--table-header-bg)",
+            borderBottom: "1px solid var(--table-header-border)",
+            boxShadow: "var(--e1)",
             minHeight: 40,
           }}
         >
-          <span
-            style={{
-              position: "absolute",
-              left: levelHeaderPos.entityX,
-              fontSize: "var(--font-sm)",
-              fontWeight: 700,
-              color: ENTITY_BORDER,
-              whiteSpace: "nowrap",
-            }}
-          >
+          {/* The headers used to be tinted to match the node boxes below them.
+              The boxes are neutral now, so the headers are too -- the column
+              position is what identifies a level, and these name it. */}
+          <span style={{ ...LEVEL_HEADER_BASE, left: levelHeaderPos.entityX, color: "var(--n-700)", borderBottom: "3px solid var(--n-300)" }}>
             Entity
           </span>
-          <span
-            style={{
-              position: "absolute",
-              left: levelHeaderPos.actionX,
-              fontSize: "var(--font-sm)",
-              fontWeight: 700,
-              color: ACTION_BORDER,
-              whiteSpace: "nowrap",
-            }}
-          >
+          <span style={{ ...LEVEL_HEADER_BASE, left: levelHeaderPos.actionX, color: "var(--n-700)", borderBottom: "3px solid var(--n-300)" }}>
             Action
           </span>
           <span
             style={{
-              position: "absolute",
+              ...LEVEL_HEADER_BASE,
               left: levelHeaderPos.statusX,
               width: levelHeaderPos.statusWidth,
-              fontSize: "var(--font-sm)",
-              fontWeight: 700,
-              color: STATUS_BORDER,
-              whiteSpace: "nowrap",
+              color: "var(--n-700)",
+              borderBottom: "3px solid var(--n-300)",
             }}
           >
             Status
           </span>
           <span
             style={{
-              position: "absolute",
+              ...LEVEL_HEADER_BASE,
               left: levelHeaderPos.templateIdX,
               width: levelHeaderPos.templateIdWidth,
-              fontSize: "var(--font-sm)",
-              fontWeight: 700,
-              color: STATUS_BORDER,
-              whiteSpace: "nowrap",
+              color: "var(--table-header-text)",
               textAlign: "left",
             }}
           >
@@ -331,13 +318,10 @@ export const VizTree: React.FC<VizTreeProps> = ({
           </span>
           <span
             style={{
-              position: "absolute",
+              ...LEVEL_HEADER_BASE,
               left: levelHeaderPos.templateX,
               width: levelHeaderPos.templateWidth,
-              fontSize: "var(--font-sm)",
-              fontWeight: 700,
-              color: STATUS_BORDER,
-              whiteSpace: "nowrap",
+              color: "var(--table-header-text)",
               textAlign: "left",
             }}
           >

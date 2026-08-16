@@ -112,13 +112,13 @@ export function LogKeys({ normalLogKeys, abnormalLogKeys, onLogKeySearch }: LogK
         </span>
       ))
     ) : (
-      <span style={{ color: "#aaa" }}>None</span>
+      <span style={{ color: "var(--n-400)" }}>None</span>
     );
 
   return (
     <div style={logKeyStyle}>
       <div>
-        <span style={{ color: "#4caf50", fontWeight: 400 }}>{`Normal Log Keys (${normalLogKeys.length} Total): `}</span>
+        <span style={{ color: "var(--sem-normal)", fontWeight: 400 }}>{`Normal Log Keys (${normalLogKeys.length} Total): `}</span>
         <span
           style={{
             marginLeft: 6,
@@ -129,12 +129,12 @@ export function LogKeys({ normalLogKeys, abnormalLogKeys, onLogKeySearch }: LogK
             minWidth: 0,
           }}
         >
-          {renderLogKeys(normalLogKeys, "#4caf50")}
+          {renderLogKeys(normalLogKeys, "var(--sem-normal)")}
         </span>
       </div>
       <br></br>
       <div>
-        <span style={{ color: "#f44336", fontWeight: 400 }}>{`Abnormal Log Keys (${abnormalLogKeys.length} Total): `}</span>
+        <span style={{ color: "var(--sem-anomaly)", fontWeight: 400 }}>{`Abnormal Log Keys (${abnormalLogKeys.length} Total): `}</span>
         <span
           style={{
             marginLeft: 6,
@@ -145,7 +145,7 @@ export function LogKeys({ normalLogKeys, abnormalLogKeys, onLogKeySearch }: LogK
             minWidth: 0,
           }}
         >
-          {renderLogKeys(abnormalLogKeys, "#f44336")}
+          {renderLogKeys(abnormalLogKeys, "var(--sem-anomaly)")}
         </span>
       </div>
     </div>
@@ -164,11 +164,11 @@ export function SequencePanel({ node, multiLineAnomaly, showSummary = true }: Se
       {showSummary && node.data.isAnomaly && (
         <>
           <div>
-            <span style={{ color: "#f44336", fontWeight: 400 }}>Anomaly Type:</span>
+            <span style={{ color: "var(--sem-anomaly)", fontWeight: 400 }}>Anomaly Type:</span>
             <span style={{ marginLeft: 6 }}>{multiLineAnomaly ? "Pattern" : "Template"}</span>
           </div>
           <div>
-            <span style={{ color: "#f44336", fontWeight: 400 }}>Anomaly Reason:</span>
+            <span style={{ color: "var(--sem-anomaly)", fontWeight: 400 }}>Anomaly Reason:</span>
             <span style={{ marginLeft: 6 }}>{node.data.anomalyReason}</span>
           </div>
         </>

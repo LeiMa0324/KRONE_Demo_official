@@ -5,8 +5,9 @@ import {
   getFontSize,
   getPadding,
   getRadius,
-  NODE_STYLE_FILL,
-  NODE_STYLE_STROKE,
+  nodeFill,
+  nodeInk,
+  nodeStroke,
 } from "@/tree_utils";
 
 import type { TreeNode } from "@/tree_utils";
@@ -41,31 +42,41 @@ export function decorateNode(
   const bbox = this.getBBox();
   const rectWidth = getNodeRectWidth?.(d) ?? widestByDepth[d.depth];
 
-  // Label background
+  // Label background, tinted by depth so Entity / Action / Status are legible
+  // as levels while scanning horizontally across a very wide tree.
   nodeGroup.insert("rect", "text")
     .attr("x", bbox.x - padding)
     .attr("y", bbox.y - padding / 2)
     .attr("width", rectWidth)
     .attr("height", bbox.height + padding)
-    .attr("fill", NODE_STYLE_FILL)
-    .attr("stroke", NODE_STYLE_STROKE)
+    .attr("fill", nodeFill(d.depth))
+    .attr("stroke", nodeStroke(d.depth))
     .attr("rx", radius).attr("ry", radius)
     .style("cursor", clickableNodes ? "pointer" : "default");
+
+  // Match the label to its level, unless a highlight class has claimed it.
+  if (!select(this).classed("highlighted-node")) {
+    select(this).attr("fill", nodeInk(d.depth));
+  }
 
   // Clickable node highlight
   if (clickableNodes) {
     nodeGroup
       .on("mouseover.button", function () {
-        select(this).select("rect").attr("filter", "brightness(0.85)");
+        select(this).select("rect")
+          .attr("stroke-width", 1.6)
+          .attr("filter", "brightness(0.96)");
       })
       .on("mouseout.button", function () {
-        select(this).select("rect").attr("filter", null);
+        select(this).select("rect")
+          .attr("stroke-width", null)
+          .attr("filter", null);
       })
       .on("mousedown.button", function () {
-        select(this).select("rect").attr("filter", "brightness(0.75)");
+        select(this).select("rect").attr("filter", "brightness(0.9)");
       })
       .on("mouseup.button", function () {
-        select(this).select("rect").attr("filter", "brightness(0.85)");
+        select(this).select("rect").attr("filter", "brightness(0.96)");
       });
   }
 
@@ -77,7 +88,7 @@ export function decorateNode(
       .attr("y", bbox.y + bbox.height / 2 + 2)
       .attr("alignment-baseline", "middle")
       .attr("font-size", Math.max(fontSize * 0.8, 16))
-      .attr("fill", "#888")
+      .attr("fill", "var(--n-500)")
       .attr("text-anchor", "start")
       .style("cursor", "pointer")
       .text("▶");
@@ -97,7 +108,7 @@ export function decorateNode(
       .attr("y", bbox.y + bbox.height / 2 + 2)
       .attr("alignment-baseline", "middle")
       .attr("font-size", Math.max(fontSize * 0.8, 14))
-      .attr("fill", "#FFD100")
+      .attr("fill", "var(--sem-anomaly)")
       .attr("text-anchor", "start")
       .style("cursor", "pointer")
       .text("⚠️")

@@ -13,6 +13,8 @@ export type TreeNode = {
   anomalyReason?: string;
   isRelatedToAnomaly?: boolean;
   lineNumber?: number;
+  /** Grafted onto the shipped tree by a save during this session. */
+  isAddedInSession?: boolean;
   event_id?: string;
   log_template?: string;
   sequenceStats?: {
@@ -33,14 +35,75 @@ export type CsvRow = {
   [key: string]: string | undefined;
 };
 
-export const ENTITY_BORDER = "#000";
-export const ACTION_BORDER = "#000";
-export const STATUS_BORDER = "#000";
-export const ENTITY_FILL = "#f7f7f7";
-export const ACTION_FILL = "#f7f7f7";
-export const STATUS_FILL = "#f7f7f7";
-export const NODE_STYLE_FILL = "#f7f7f7";
-export const NODE_STYLE_STROKE = "#d0d0d0";
+export const ENTITY_BORDER = "#1C1919";
+export const ACTION_BORDER = "#1C1919";
+export const STATUS_BORDER = "#1C1919";
+
+/**
+ * Depth-indexed node palette. Depth 0 is Root, then Entity / Action / Status.
+ *
+ * The three levels used to be drawn in one indigo hue at three lightness
+ * steps, which made the hierarchy page's tree violet while the training,
+ * detection and knowledge-base pages -- which draw the same kind of tree from
+ * LEVEL_*[0] -- were grey. Same structure, two different-looking trees.
+ *
+ * The structure is now neutral everywhere. Depth is already carried by the
+ * layout (the columns are literally the levels, and the sticky level headers
+ * name them), so spending a hue on it bought a second encoding of something
+ * unambiguous while competing with the marks that do need to advance off the
+ * canvas: anomaly red, knowledge-base teal, the highlight amber.
+ *
+ * These are custom-property references rather than literals so index.css stays
+ * the only place the values live. SVG presentation attributes resolve var().
+ */
+export const LEVEL_FILL = [
+  "var(--n-100)",
+  "var(--n-100)",
+  "var(--n-100)",
+  "var(--n-100)",
+];
+export const LEVEL_STROKE = [
+  "var(--n-300)",
+  "var(--n-300)",
+  "var(--n-300)",
+  "var(--n-300)",
+];
+export const LEVEL_INK = [
+  "var(--n-700)",
+  "var(--n-900)",
+  "var(--n-900)",
+  "var(--n-900)",
+];
+
+export const ENTITY_FILL = LEVEL_FILL[1];
+export const ACTION_FILL = LEVEL_FILL[2];
+export const STATUS_FILL = LEVEL_FILL[3];
+
+/** Neutral fallback for nodes drawn outside the Entity/Action/Status ladder. */
+export const NODE_STYLE_FILL = LEVEL_FILL[0];
+export const NODE_STYLE_STROKE = LEVEL_STROKE[0];
+
+const clampDepth = (depth: number) => Math.min(Math.max(depth, 0), 3);
+
+export function nodeFill(depth: number) {
+  return LEVEL_FILL[clampDepth(depth)];
+}
+
+export function nodeStroke(depth: number) {
+  return LEVEL_STROKE[clampDepth(depth)];
+}
+
+export function nodeInk(depth: number) {
+  return LEVEL_INK[clampDepth(depth)];
+}
+
+/**
+ * Links are tinted by the level they descend *into*, so a run of edges fades
+ * outward as the tree deepens and the eye can follow a branch by tone alone.
+ */
+export function linkStroke(sourceDepth: number) {
+  return LEVEL_STROKE[clampDepth(sourceDepth + 1)];
+}
 export const BASE_FONT = 28;
 export const FIXED_NODE_FONT = 13;
 export const BASE_PADDING = 0.35;
@@ -206,11 +269,10 @@ export function getCssVar(n: string) {
 }
 
 export function linkBorderColor(d: { source: { depth: number } }) {
-  void d;
-  return NODE_STYLE_STROKE;
+  return linkStroke(d.source.depth);
 }
 export function linkFillColor(d: { source: { depth: number } }) {
-  return [ENTITY_FILL, ACTION_FILL, STATUS_FILL, "#fff"][d.source.depth] || "#fff";
+  return LEVEL_FILL[clampDepth(d.source.depth + 1)] || "#fff";
 }
 
 // Get the widest label width for each depth in the tree

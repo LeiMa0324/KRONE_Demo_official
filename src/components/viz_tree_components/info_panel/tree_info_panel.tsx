@@ -57,7 +57,7 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
 
   const tableLabelWidth = 150;
   const tableRowHeight = 44;
-  const tableDivider = "#edf1f5";
+  const tableDivider = "var(--n-200)";
   const sequencePanelFontSize = "var(--font-sm)";
   const tableFontSize = isSequencePanel ? sequencePanelFontSize : "var(--font-md)";
   const defaultPanelTitleFontSize = isSequencePanel ? sequencePanelFontSize : titleStyle.fontSize;
@@ -104,7 +104,7 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
                     padding: "2px 8px",
                     border: row.highlighted ? "1px solid var(--highlight-border)" : "1px solid #d0d0d0",
                     borderRadius: 6,
-                    background: row.highlighted ? "var(--highlight-fill)" : "#f7f7f7",
+                    background: row.highlighted ? "var(--highlight-fill)" : "var(--n-100)",
                     color: "var(--text-value)",
                     fontWeight: 400,
                     boxShadow: row.highlighted ? "0 0 0 1px var(--highlight-ring)" : undefined,
@@ -187,7 +187,7 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
 
   if (!node) {
     return (
-      <div style={{ ...panelStyle, color: "#888", fontSize: emptyStateFontSize }}>
+      <div style={{ ...panelStyle, color: "var(--n-500)", fontSize: emptyStateFontSize }}>
         Click a node to see details
       </div>
     );
@@ -235,10 +235,10 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
         : abnormalLogKeys.length > 0;
       const predictionLabel = hasAnyLogKey ? (isAbnormal ? "Abnormal" : "Normal") : "-";
       const predictionColor = predictionLabel === "Abnormal"
-        ? "#f44336"
+        ? "var(--sem-anomaly)"
         : predictionLabel === "Normal"
-          ? "#4caf50"
-          : "#888";
+          ? "var(--sem-normal)"
+          : "var(--n-500)";
       const anomalyReason = node.data.isAnomaly ? (node.data.anomalyReason || "-") : "-";
       rows = [
         { label: "Entity", value: getNameAtDepth(1), boxed: true },
@@ -250,7 +250,7 @@ export const TreeInfoPanel: React.FC<TreeInfoPanelProps> = ({
         { label: "Log Key Sequence", value: logKeySequence },
         { label: "Log Template", value: logTemplate },
         { label: "Log Key Prediction", value: predictionLabel, color: predictionColor },
-        // { label: "Anomaly Type", value: anomalyType, color: anomalyType === "-" ? undefined : "#f44336" },
+        // { label: "Anomaly Type", value: anomalyType, color: anomalyType === "-" ? undefined : "var(--sem-anomaly)" },
         { label: "Anomaly Reason", value: anomalyReason },
       ];
 

@@ -5,9 +5,10 @@ import { buildTree } from "../../tree_utils";
 import type {TreeNode } from "../../tree_utils";
 import { findStatusNode, findNodeId } from "./viz_tree_utils";
 import type { HierarchyNode } from "d3-hierarchy";
-import { withBase } from "@/lib/base-url";
+import { useDataset } from "@/DatasetContext";
 
 export function useTreeSearch() {
+  const { fileFor } = useDataset();
   const [treeData, setTreeData] = useState<TreeNode | null>(null);
   const [collapseEntities, setCollapseEntities] = useState(false);
   const [collapseActions, setCollapseActions] = useState(false);
@@ -23,8 +24,8 @@ export function useTreeSearch() {
   const [searchMode, setSearchMode] = useState<"logKey" | "sequence" | null>(null);
 
   useEffect(() => {
-    csv(withBase("Krone_Tree.csv")).then(rows => setTreeData(buildTree(rows)));
-  }, []);
+    csv(fileFor("Krone_Tree")).then(rows => setTreeData(buildTree(rows)));
+  }, [fileFor]);
 
   useEffect(() => {
     if (searchMode !== "logKey") return;
