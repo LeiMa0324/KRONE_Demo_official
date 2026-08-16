@@ -26,3 +26,11 @@ dist-ssr
 # test embedding CSV files
 public/test_embedding_all.csv
 public/test_knowledge_all_fixed.csv
+# Full-fidelity research CSVs the demo data is derived from (hundreds of MB).
+# Regenerate public/data/ with: python3 scripts/build_demo_data.py
+data_raw/
+
+# Session tooling and stray archives
+.claude/
+src.zip
+public/data/BGL/

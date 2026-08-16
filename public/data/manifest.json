@@ -1,0 +1,60 @@
+{
+  "datasets": [
+    {
+      "key": "HDFS",
+      "label": "HDFS",
+      "description": "Hadoop Distributed File System block traces.",
+      "templateCount": 47,
+      "testSequences": {
+        "total": 56931,
+        "shipped": 1000
+      },
+      "trainSequences": {
+        "total": 5750,
+        "shipped": 1000
+      },
+      "detectionSequences": 1971,
+      "knowledge": {
+        "train": {
+          "total": 2375,
+          "shipped": 2375,
+          "sampled": false
+        },
+        "test": {
+          "total": 5381,
+          "shipped": 5381,
+          "sampled": false
+        }
+      },
+      "bytes": 9568954
+    },
+    {
+      "key": "ThunderBird",
+      "label": "Thunderbird",
+      "description": "Thunderbird supercomputer system logs.",
+      "templateCount": 1206,
+      "testSequences": {
+        "total": 47221,
+        "shipped": 1000
+      },
+      "trainSequences": {
+        "total": 19841,
+        "shipped": 400
+      },
+      "detectionSequences": 16,
+      "knowledge": {
+        "train": {
+          "total": 6959,
+          "shipped": 6000,
+          "sampled": true
+        },
+        "test": {
+          "total": 576,
+          "shipped": 576,
+          "sampled": false
+        }
+      },
+      "bytes": 9521438
+    }
+  ]
+}
